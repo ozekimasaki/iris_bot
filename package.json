@@ -1,0 +1,32 @@
+{
+  "name": "iris-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Iris is a reusable Discord operations bot for multi-guild deployments.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node --disable-warning=ExperimentalWarning dist/index.js",
+    "test": "pnpm build && node --disable-warning=ExperimentalWarning dist/test/smoke.js",
+    "db:migrate": "pnpm build && node --disable-warning=ExperimentalWarning dist/db/migrate.js",
+    "commands:sync": "pnpm build && node --disable-warning=ExperimentalWarning dist/app/command-sync.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.2",
+    "luxon": "^3.7.1",
+    "pino": "^9.9.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

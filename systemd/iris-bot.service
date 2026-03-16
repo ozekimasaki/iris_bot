@@ -1,0 +1,18 @@
+[Unit]
+Description=Iris Discord bot
+After=network.target
+
+[Service]
+Type=simple
+User=iris
+Group=iris
+WorkingDirectory=/opt/iris-bot
+EnvironmentFile=/etc/iris-bot/iris-bot.env
+ExecStart=/usr/bin/node /opt/iris-bot/dist/index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
