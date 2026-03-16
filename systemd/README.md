@@ -5,7 +5,8 @@
 ## 前提
 
 - Ubuntu サーバーを使う
-- `Node.js 24 LTS` と `pnpm 10+` を system-wide にインストール済み
+- `Node.js 24 LTS` を system-wide にインストール済み
+- 依存解決用に `pnpm 10+` または `Bun 1.x` を利用可能
 - Discord Bot の `DISCORD_TOKEN` と `DISCORD_APPLICATION_ID` を取得済み
 - アプリ配置先を `/opt/iris-bot`、環境変数ファイルを `/etc/iris-bot/iris-bot.env`、SQLite を `/var/lib/iris-bot/iris.db` とする
 
@@ -13,7 +14,7 @@
 
 ## proto を使う場合
 
-`iris-bot` は Bun 実行ではなく、`Node.js 24 + pnpm` 前提です。Ubuntu 環境で `proto` を使っている場合も、`bun` ではなく `node` と `pnpm` を `proto` で入れて起動してください。
+`iris-bot` は `node:sqlite` を使っているため、本番実行ランタイムは Node.js にしてください。Ubuntu 環境で `proto` を使う場合は、最低でも `node` を `proto` で入れてください。依存解決とスクリプト実行には `pnpm` でも `bun` でも使えます。
 
 `proto setup` はシェルの profile に PATH を追加する方式なので、`systemd` ではそのまま効かないことがあります。そのため、サービスファイルでは `node` や `pnpm` を素のコマンド名で呼ぶより、`proto` を絶対パスで呼ぶ方が安全です。
 
@@ -21,8 +22,10 @@
 
 ```bash
 proto install node 24
+proto install bun 1
 proto install pnpm 10
 proto pin node 24 --resolve
+proto pin bun 1 --resolve
 proto pin pnpm 10 --resolve
 ```
 
@@ -30,6 +33,7 @@ proto pin pnpm 10 --resolve
 
 ```toml
 node = "24"
+bun = "1"
 pnpm = "10"
 ```
 
@@ -43,6 +47,12 @@ ExecStart=/home/iris/.proto/bin/proto exec node -- node --disable-warning=Experi
 
 ```bash
 sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec node pnpm -- pnpm install --frozen-lockfile && ~/.proto/bin/proto exec node pnpm -- pnpm build'
+```
+
+`bun` を使いたい場合の例:
+
+```bash
+sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec node bun -- bun install && ~/.proto/bin/proto exec node bun -- bun run build'
 ```
 
 ## 1. 実行ユーザーと保存先を作成
@@ -71,6 +81,12 @@ sudo -u iris bash -lc 'cd /opt/iris-bot && pnpm install --frozen-lockfile && pnp
 
 `systemd` は `dist/index.js` を起動するため、`pnpm build` が必要です。
 
+`bun` を使う場合:
+
+```bash
+sudo -u iris bash -lc 'cd /opt/iris-bot && bun install && bun run build'
+```
+
 ## 4. 環境変数ファイルを作成
 
 ```bash
@@ -97,6 +113,12 @@ sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /op
 
 ```bash
 sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; pnpm commands:sync --guild <guild-id>'
+```
+
+`bun` を使う場合:
+
+```bash
+sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; bun run commands:sync'
 ```
 
 ## 6. systemd サービスを登録

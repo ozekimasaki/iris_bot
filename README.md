@@ -14,7 +14,7 @@ Iris is a reusable Discord operations bot designed for multi-guild deployments o
 ## Requirements
 
 - Node.js 24 LTS
-- pnpm 10+
+- pnpm 10+ or Bun 1.x
 - A Discord application with the bot invited to target guilds
 
 ## Environment variables
@@ -34,6 +34,8 @@ cp .env.example .env
 
 ## Development
 
+Using `pnpm`:
+
 ```bash
 pnpm install
 pnpm db:migrate
@@ -41,9 +43,20 @@ pnpm commands:sync
 pnpm dev
 ```
 
-Iris uses `node:sqlite`, so no extra database server or native addon toolchain is required. `pnpm db:migrate` and normal startup both apply pending SQL migrations automatically.
+Using `bun`:
 
-`pnpm commands:sync` synchronizes commands to every guild the bot is currently installed in. Use `pnpm commands:sync --guild <guild-id>` when you want to target only one guild, or `pnpm commands:sync --global` when you intentionally want global application commands.
+```bash
+bun install
+bun run db:migrate
+bun run commands:sync
+bun run dev
+```
+
+Iris uses `node:sqlite`, so no extra database server or native addon toolchain is required. `db:migrate` and normal startup both apply pending SQL migrations automatically.
+
+`commands:sync` synchronizes commands to every guild the bot is currently installed in. Use `pnpm commands:sync --guild <guild-id>` or `bun run commands:sync -- --guild <guild-id>` when you want to target only one guild, or `pnpm commands:sync --global` / `bun run commands:sync -- --global` when you intentionally want global application commands.
+
+`bun` は依存解決やスクリプト実行に使えますが、本番実行ランタイムは引き続き Node.js を使ってください。
 
 ## Production on Ubuntu
 

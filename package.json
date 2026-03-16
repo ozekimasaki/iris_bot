@@ -12,9 +12,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc --project tsconfig.json",
     "start": "node --disable-warning=ExperimentalWarning dist/index.js",
-    "test": "pnpm build && node --disable-warning=ExperimentalWarning dist/test/smoke.js",
-    "db:migrate": "pnpm build && node --disable-warning=ExperimentalWarning dist/db/migrate.js",
-    "commands:sync": "pnpm build && node --disable-warning=ExperimentalWarning dist/app/command-sync.js"
+    "test": "tsc --project tsconfig.json && node --disable-warning=ExperimentalWarning dist/test/smoke.js",
+    "db:migrate": "tsc --project tsconfig.json && node --disable-warning=ExperimentalWarning dist/db/migrate.js",
+    "commands:sync": "tsc --project tsconfig.json && node --disable-warning=ExperimentalWarning dist/app/command-sync.js"
   },
   "dependencies": {
     "discord.js": "^14.25.1",
