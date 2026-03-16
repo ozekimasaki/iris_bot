@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database } from 'bun:sqlite';
 import { applyMigrations } from './migrations.js';
 
 type SqlValue = string | number | bigint | Uint8Array | null;
@@ -10,8 +10,8 @@ function ensureParentDir(filePath: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
-function configure(raw: DatabaseSync) {
-  raw.exec(`
+function configure(raw: Database) {
+  raw.run(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
     PRAGMA busy_timeout = 5000;
@@ -19,7 +19,7 @@ function configure(raw: DatabaseSync) {
 }
 
 export type DatabaseHandle = {
-  raw: DatabaseSync;
+  raw: Database;
   run: (sql: string, params?: SqlParams) => void;
   get: <T>(sql: string, params?: SqlParams) => T | null;
   all: <T>(sql: string, params?: SqlParams) => T[];
@@ -30,7 +30,10 @@ export type DatabaseHandle = {
 export function createDatabase(databasePath: string): DatabaseHandle {
   ensureParentDir(databasePath);
 
-  const raw = new DatabaseSync(databasePath);
+  const raw = new Database(databasePath, {
+    create: true,
+    strict: true,
+  });
   configure(raw);
   applyMigrations(raw);
 
@@ -46,22 +49,10 @@ export function createDatabase(databasePath: string): DatabaseHandle {
       return raw.prepare(sql).all(params) as T[];
     },
     transaction(operation) {
-      raw.exec('BEGIN');
-      try {
-        const result = operation();
-        raw.exec('COMMIT');
-        return result;
-      } catch (error) {
-        try {
-          raw.exec('ROLLBACK');
-        } catch {
-          // Ignore rollback failures and preserve the original error.
-        }
-        throw error;
-      }
+      return raw.transaction(() => operation())();
     },
     close() {
-      raw.close();
+      raw.close(false);
     },
   };
 

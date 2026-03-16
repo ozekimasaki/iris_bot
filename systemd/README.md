@@ -5,55 +5,20 @@
 ## 前提
 
 - Ubuntu サーバーを使う
-- `Node.js 24 LTS` を system-wide にインストール済み
-- 依存解決用に `pnpm 10+` または `Bun 1.x` を利用可能
+- `bun 1.3.10` を利用できる
 - Discord Bot の `DISCORD_TOKEN` と `DISCORD_APPLICATION_ID` を取得済み
 - アプリ配置先を `/opt/iris-bot`、環境変数ファイルを `/etc/iris-bot/iris-bot.env`、SQLite を `/var/lib/iris-bot/iris.db` とする
 
-`systemd/iris-bot.service` は `/usr/bin/node` を参照するため、`nvm` 専用構成のままだと動かないことがあります。
+## ツール管理
 
-## proto を使う場合
-
-`iris-bot` は `node:sqlite` を使っているため、本番実行ランタイムは Node.js にしてください。Ubuntu 環境で `proto` を使う場合は、最低でも `node` を `proto` で入れてください。依存解決とスクリプト実行には `pnpm` でも `bun` でも使えます。
-
-`proto setup` はシェルの profile に PATH を追加する方式なので、`systemd` ではそのまま効かないことがあります。そのため、サービスファイルでは `node` や `pnpm` を素のコマンド名で呼ぶより、`proto` を絶対パスで呼ぶ方が安全です。
-
-例:
+`iris-bot` は Bun 一本で動かします。Ubuntu では `proto` 前提を推奨します。
 
 ```bash
-proto install node 24
-proto install bun 1
-proto install pnpm 10
-proto pin node 24 --resolve
-proto pin bun 1 --resolve
-proto pin pnpm 10 --resolve
+proto install bun 1.3.10
+proto pin bun 1.3.10 --resolve
 ```
 
-このリポジトリ直下に `.prototools` を置く場合の例:
-
-```toml
-node = "24"
-bun = "1"
-pnpm = "10"
-```
-
-`systemd` で `proto` を使う場合は、`ExecStart` を以下のように変更します。
-
-```ini
-ExecStart=/home/iris/.proto/bin/proto exec node -- node --disable-warning=ExperimentalWarning /opt/iris-bot/dist/index.js
-```
-
-この場合、ビルドや依存インストールも同様に `proto exec` 経由にします。
-
-```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec node pnpm -- pnpm install --frozen-lockfile && ~/.proto/bin/proto exec node pnpm -- pnpm build'
-```
-
-`bun` を使いたい場合の例:
-
-```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec node bun -- bun install && ~/.proto/bin/proto exec node bun -- bun run build'
-```
+このリポジトリには `.prototools` も同梱しています。
 
 ## 1. 実行ユーザーと保存先を作成
 
@@ -71,20 +36,10 @@ sudo chown -R iris:iris /opt/iris-bot /var/lib/iris-bot
 sudo -u iris git clone https://github.com/ozekimasaki/iris_bot /opt/iris-bot
 ```
 
-すでに配置済みならこの手順は不要です。
-
-## 3. 依存関係を入れてビルド
+## 3. 依存関係を入れる
 
 ```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && pnpm install --frozen-lockfile && pnpm build'
-```
-
-`systemd` は `dist/index.js` を起動するため、`pnpm build` が必要です。
-
-`bun` を使う場合:
-
-```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && bun install && bun run build'
+sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec bun -- bun install'
 ```
 
 ## 4. 環境変数ファイルを作成
@@ -103,25 +58,19 @@ sudo chmod 640 /etc/iris-bot/iris-bot.env
 
 ## 5. 初回コマンド同期
 
-Slash command を Discord に反映します。
-
 ```bash
-sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; pnpm commands:sync'
+sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; ~/.proto/bin/proto exec bun -- bun run commands:sync'
 ```
 
 特定ギルドだけなら:
 
 ```bash
-sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; pnpm commands:sync --guild <guild-id>'
-```
-
-`bun` を使う場合:
-
-```bash
-sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; bun run commands:sync'
+sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; ~/.proto/bin/proto exec bun -- bun run commands:sync -- --guild <guild-id>'
 ```
 
 ## 6. systemd サービスを登録
+
+同梱の `systemd/iris-bot.service` は `proto exec bun` 前提です。
 
 ```bash
 sudo cp /opt/iris-bot/systemd/iris-bot.service /etc/systemd/system/iris-bot.service
@@ -136,51 +85,27 @@ sudo systemctl status iris-bot
 sudo journalctl -u iris-bot -f
 ```
 
-自動起動設定を確認する場合:
-
-```bash
-sudo systemctl is-enabled iris-bot
-```
-
 ## 更新手順
 
 ```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && git pull && pnpm install --frozen-lockfile && pnpm build'
+sudo -u iris bash -lc 'cd /opt/iris-bot && git pull && ~/.proto/bin/proto exec bun -- bun install'
 sudo systemctl restart iris-bot
 ```
 
-コマンド定義を変えた場合や Bot を新しいギルドに招待した場合は、更新後に `pnpm commands:sync` も実行してください。
+コマンド定義を変えた場合や Bot を新しいギルドに招待した場合は、更新後に `bun run commands:sync` も実行してください。
 
 ## よく使う操作
 
-起動:
-
 ```bash
 sudo systemctl start iris-bot
-```
-
-停止:
-
-```bash
 sudo systemctl stop iris-bot
-```
-
-再起動:
-
-```bash
 sudo systemctl restart iris-bot
-```
-
-ログ確認:
-
-```bash
 sudo journalctl -u iris-bot -n 200
 ```
 
 ## トラブルシュート
 
-- `ExecStart` の `/usr/bin/node` が存在しない場合は、`which node` で実パスを確認して `systemd/iris-bot.service` を修正する
-- `proto` 管理のランタイムを使う場合は、`/usr/bin/node` 参照をやめて `~/.proto/bin/proto exec ...` に変える
 - `.env` を更新しただけでは反映されないため、更新後は `sudo systemctl restart iris-bot` を実行する
 - `DATABASE_PATH` の親ディレクトリに `iris` ユーザーの書き込み権限が必要
+- `proto` 利用時に `~/.proto/bin/proto` が見つからない場合は、実ユーザー `iris` で `proto install bun 1.3.10` をやり直す
 - 起動失敗時は `sudo journalctl -u iris-bot -b` で当該ブートのログを確認する

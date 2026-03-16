@@ -91,6 +91,18 @@ cleanupJobs.cancel(cleanupJobId);
 assert.equal(cleanupJobs.findByGuildAndId('guild-1', cleanupJobId)?.status, 'cancelled');
 
 database.close();
-fs.rmSync(tempRoot, { recursive: true, force: true });
+
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  try {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    break;
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : null;
+    if (code !== 'EBUSY' || attempt === 4) {
+      throw error;
+    }
+    await Bun.sleep(50);
+  }
+}
 
 console.log('smoke tests passed');

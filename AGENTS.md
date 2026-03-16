@@ -11,10 +11,10 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 
 ## Tech Stack
 
-- `Node.js 24+`
+- `Bun 1.3+`
 - `TypeScript`
 - `discord.js v14`
-- `node:sqlite` for local SQLite storage
+- `bun:sqlite` for local SQLite storage
 - `luxon` for timezone-aware date handling
 - `pino` for logging
 - `zod` for env validation
@@ -128,13 +128,13 @@ Localization utilities live in:
 
 ## Database
 
-Database access uses `node:sqlite` with a thin repository layer. No ORM is used.
+Database access uses `bun:sqlite` with a thin repository layer. No ORM is used.
 
 Migration model:
 
 - SQL files live in `migrations/`
 - Applied migrations are tracked in `_migrations`
-- Migrations are applied both by `pnpm db:migrate` and normal startup
+- Migrations are applied both by `bun run db:migrate` and normal startup
 
 Main tables:
 
@@ -150,18 +150,18 @@ Main tables:
 
 ## Operational Commands
 
-- `pnpm dev`
-- `pnpm build`
-- `pnpm start`
-- `pnpm test`
-- `pnpm db:migrate`
-- `pnpm commands:sync`
+- `bun run dev`
+- `bun run build`
+- `bun run start`
+- `bun run test`
+- `bun run db:migrate`
+- `bun run commands:sync`
 
 Command sync behavior:
 
-- `pnpm commands:sync` syncs to every guild the bot is currently installed in
-- `pnpm commands:sync --guild <guild-id>` targets a single guild
-- `pnpm commands:sync --global` registers global application commands
+- `bun run commands:sync` syncs to every guild the bot is currently installed in
+- `bun run commands:sync -- --guild <guild-id>` targets a single guild
+- `bun run commands:sync -- --global` registers global application commands
 
 ## Environment Variables
 
@@ -192,8 +192,8 @@ Command sync behavior:
 - There is no distributed job locking
 - Forum backfill is automatic on startup and manual via `/forum resync`, but only for watched forums
 - If the bot is offline for a long time, startup reconciliation depends on Discord thread fetch coverage
-- Engine target is `Node.js 24+`
-  - Running scripts under older Node versions may still build, but that is not the supported runtime
+- Engine target is `Bun 1.3+`
+  - Use `mise trust` after cloning on Windows if `mise.toml` is not yet trusted
 
 ## Recommended Files To Read Before Changing Behavior
 
@@ -214,6 +214,6 @@ Command sync behavior:
 
 The current implementation has been verified with:
 
-- `pnpm build`
-- `pnpm test`
-- `pnpm db:migrate`
+- `bun run build`
+- `bun run test`
+- `bun run db:migrate`

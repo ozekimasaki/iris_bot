@@ -13,8 +13,7 @@ Iris is a reusable Discord operations bot designed for multi-guild deployments o
 
 ## Requirements
 
-- Node.js 24 LTS
-- pnpm 10+ or Bun 1.x
+- Bun 1.3+
 - A Discord application with the bot invited to target guilds
 
 ## Environment variables
@@ -34,17 +33,6 @@ cp .env.example .env
 
 ## Development
 
-Using `pnpm`:
-
-```bash
-pnpm install
-pnpm db:migrate
-pnpm commands:sync
-pnpm dev
-```
-
-Using `bun`:
-
 ```bash
 bun install
 bun run db:migrate
@@ -52,11 +40,16 @@ bun run commands:sync
 bun run dev
 ```
 
-Iris uses `node:sqlite`, so no extra database server or native addon toolchain is required. `db:migrate` and normal startup both apply pending SQL migrations automatically.
+Iris uses `bun:sqlite`, so no extra database server or native addon toolchain is required. `db:migrate` and normal startup both apply pending SQL migrations automatically.
 
-`commands:sync` synchronizes commands to every guild the bot is currently installed in. Use `pnpm commands:sync --guild <guild-id>` or `bun run commands:sync -- --guild <guild-id>` when you want to target only one guild, or `pnpm commands:sync --global` / `bun run commands:sync -- --global` when you intentionally want global application commands.
+`commands:sync` synchronizes commands to every guild the bot is currently installed in. Use `bun run commands:sync -- --guild <guild-id>` when you want to target only one guild, or `bun run commands:sync -- --global` when you intentionally want global application commands.
 
-`bun` は依存解決やスクリプト実行に使えますが、本番実行ランタイムは引き続き Node.js を使ってください。
+If you use tool managers:
+
+- Windows: use [`mise.toml`](/C:/Users/masam/Documents/server_admin_bot/iris-bot/mise.toml)
+- Ubuntu: use [`.prototools`](/C:/Users/masam/Documents/server_admin_bot/iris-bot/.prototools) with `proto`
+
+If you use `mise`, run `mise trust` once after cloning so `mise.toml` is accepted.
 
 ## Production on Ubuntu
 
@@ -65,6 +58,8 @@ Recommended paths:
 - App: `/opt/iris-bot`
 - Environment file: `/etc/iris-bot/iris-bot.env`
 - Database: `/var/lib/iris-bot/iris.db`
+
+Ubuntu deployment assumes `proto` and the bundled [`.prototools`](/C:/Users/masam/Documents/server_admin_bot/iris-bot/.prototools).
 
 Example service file is available at [systemd/iris-bot.service](/C:/Users/masam/Documents/server_admin_bot/iris-bot/systemd/iris-bot.service).
 
