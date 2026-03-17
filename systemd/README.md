@@ -39,7 +39,7 @@ sudo -u iris git clone https://github.com/ozekimasaki/iris_bot /opt/iris-bot
 ## 3. 依存関係を入れる
 
 ```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && ~/.proto/bin/proto exec bun -- bun install'
+sudo -u iris bash -lc 'cd /opt/iris-bot && /opt/iris-bot/.proto/bin/proto exec bun -- bun install'
 ```
 
 ## 4. 環境変数ファイルを作成
@@ -59,13 +59,13 @@ sudo chmod 640 /etc/iris-bot/iris-bot.env
 ## 5. 初回コマンド同期
 
 ```bash
-sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; ~/.proto/bin/proto exec bun -- bun run commands:sync'
+sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; /opt/iris-bot/.proto/bin/proto exec bun -- bun run commands:sync'
 ```
 
 特定ギルドだけなら:
 
 ```bash
-sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; ~/.proto/bin/proto exec bun -- bun run commands:sync -- --guild <guild-id>'
+sudo -u iris bash -lc 'set -a; source /etc/iris-bot/iris-bot.env; set +a; cd /opt/iris-bot; /opt/iris-bot/.proto/bin/proto exec bun -- bun run commands:sync -- --guild <guild-id>'
 ```
 
 ## 6. systemd サービスを登録
@@ -88,11 +88,13 @@ sudo journalctl -u iris-bot -f
 ## 更新手順
 
 ```bash
-sudo -u iris bash -lc 'cd /opt/iris-bot && git pull && ~/.proto/bin/proto exec bun -- bun install'
+sudo -u iris bash -lc 'cd /opt/iris-bot && git pull --ff-only && /opt/iris-bot/.proto/bin/proto exec bun -- bun install'
 sudo systemctl restart iris-bot
 ```
 
 コマンド定義を変えた場合や Bot を新しいギルドに招待した場合は、更新後に `bun run commands:sync` も実行してください。
+
+詳細は [systemd/UPDATE.md](/C:/Users/masam/Documents/server_admin_bot/iris-bot/systemd/UPDATE.md) を参照してください。
 
 ## よく使う操作
 
@@ -107,5 +109,5 @@ sudo journalctl -u iris-bot -n 200
 
 - `.env` を更新しただけでは反映されないため、更新後は `sudo systemctl restart iris-bot` を実行する
 - `DATABASE_PATH` の親ディレクトリに `iris` ユーザーの書き込み権限が必要
-- `proto` 利用時に `~/.proto/bin/proto` が見つからない場合は、実ユーザー `iris` で `proto install bun 1.3.10` をやり直す
+- `proto` 利用時に `/opt/iris-bot/.proto/bin/proto` が見つからない場合は、`iris` ユーザーで `/opt/iris-bot` 配下の `proto install bun 1.3.10` をやり直す
 - 起動失敗時は `sudo journalctl -u iris-bot -b` で当該ブートのログを確認する

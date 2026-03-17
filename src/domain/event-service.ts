@@ -101,22 +101,29 @@ export class EventService {
       throw new Error('ARCHIVE_CATEGORY_NOT_CONFIGURED');
     }
 
-    const record = await this.getActiveEventByChannel(guild.id, channelId);
-    if (!record) {
-      throw new Error('EVENT_NOT_FOUND');
-    }
-
-    const channel = guild.channels.cache.get(channelId);
+    const channel = await guild.channels.fetch(channelId);
     if (!channel || channel.type !== ChannelType.GuildText) {
       throw new Error('EVENT_CHANNEL_NOT_FOUND');
     }
 
+    const record = await this.getActiveEventByChannel(guild.id, channelId);
+    if (!record && channel.parentId !== config.eventCategoryId) {
+      throw new Error('EVENT_NOT_FOUND');
+    }
+
     await channel.setParent(config.archiveCategoryId, { lockPermissions: false });
 
-    this.eventChannels.archiveById(record.id, Date.now());
+    if (record) {
+      this.eventChannels.archiveById(record.id, Date.now());
+      await this.roleService.deactivateGrantableRole(guild.id, record.roleId);
 
-    await this.roleService.deactivateGrantableRole(guild.id, record.roleId);
+      return {
+        displayName: record.displayName,
+      };
+    }
 
-    return record;
+    return {
+      displayName: channel.name,
+    };
   }
 }
