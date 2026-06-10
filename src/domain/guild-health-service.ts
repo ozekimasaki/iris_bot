@@ -150,9 +150,6 @@ export class GuildHealthService {
       if (!botPermissions?.has(PermissionFlagsBits.BanMembers)) {
         report.warnings.push('Bot is missing Ban Members while a honeypot channel is configured.');
       }
-      if (!botPermissions?.has(PermissionFlagsBits.ManageMessages)) {
-        report.warnings.push('Bot is missing Manage Messages; honeypot messages cannot be deleted before banning.');
-      }
     }
 
     return report;

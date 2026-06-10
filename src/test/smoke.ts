@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 import { createDatabase } from '../db/client.js';
 import { EventChannelsRepository } from '../db/repositories/event-channels-repository.js';
 import { GuildRoleBindingsRepository } from '../db/repositories/guild-role-bindings-repository.js';
+import { HoneypotBansRepository } from '../db/repositories/honeypot-bans-repository.js';
 import { GuildSettingsRepository } from '../db/repositories/guild-settings-repository.js';
 import { EventService } from '../domain/event-service.js';
 import { RoleCleanupJobsRepository } from '../db/repositories/role-cleanup-jobs-repository.js';
@@ -70,6 +71,15 @@ assert.equal((await guildConfig.getGuildConfig('guild-1')).honeypotChannelId, 'h
 
 await guildConfig.clearHoneypotChannel('guild-1');
 assert.equal(await guildConfig.getHoneypotChannelId('guild-1'), null);
+
+const honeypotBans = new HoneypotBansRepository(database);
+const bannedAt = Date.UTC(2026, 5, 10, 6, 0, 0);
+honeypotBans.insert('guild-1', 'user-trap', 'message-1', 'honeypot-channel', bannedAt);
+honeypotBans.insert('guild-1', 'user-trap-2', null, 'honeypot-channel', bannedAt + 1000);
+const bans = honeypotBans.listByGuild('guild-1', 10);
+assert.equal(bans.length, 2);
+assert.equal(bans[0]?.userId, 'user-trap-2');
+assert.equal(bans[1]?.messageId, 'message-1');
 
 eventChannels.insert('guild-1', 'channel-1', 'event-role-1', 'Spring Meetup', 'user-1');
 const activeEvents = await eventChannels.listActiveByGuild('guild-1', 10, 0);

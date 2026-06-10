@@ -151,6 +151,27 @@ export const setupCommand: CommandDefinition = {
                 'ハニーポットチャンネルの設定を解除します。',
                 '移除蜜罐频道设置。',
               ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('list')
+                  .setDescription('List users banned by the honeypot trap.')
+                  .addIntegerOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('limit')
+                        .setDescription('Number of records to show (1-50)')
+                        .setRequired(false)
+                        .setMinValue(1)
+                        .setMaxValue(50),
+                      '表示件数（1〜50）',
+                      '显示条数（1-50）',
+                    ),
+                  ),
+                'ハニーポットで BAN したユーザーの一覧を表示します。',
+                '列出蜜罐陷阱封禁的用户。',
+              ),
             ),
           'ハニーポットチャンネルを設定します。',
           '配置蜜罐陷阱频道。',
@@ -250,7 +271,7 @@ export const setupCommand: CommandDefinition = {
   meta: {
     name: 'setup',
     summary: 'Configure guild roles, categories, timezone, and language.',
-    usage: '/setup role add|remove|list, /setup honeypot set|clear, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
+    usage: '/setup role add|remove|list, /setup honeypot set|clear|list, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
     visibility: 'admin',
   },
   async execute(ctx, interaction) {
@@ -336,6 +357,35 @@ export const setupCommand: CommandDefinition = {
           )],
           flags: MessageFlags.Ephemeral,
         });
+        return;
+      }
+
+      if (subcommand === 'list') {
+        const limit = interaction.options.getInteger('limit') ?? 20;
+        const bans = ctx.services.honeypot.listBans(interaction.guildId!, limit);
+        const embed = new EmbedBuilder()
+          .setTitle(t(locale, 'setup.honeypotListTitle'))
+          .setColor(0x5865f2)
+          .setTimestamp();
+
+        if (bans.length === 0) {
+          embed.setDescription(t(locale, 'setup.honeypotListEmpty'));
+        } else {
+          const lines = bans.map((ban) => {
+            const timestamp = `<t:${Math.floor(ban.bannedAt / 1000)}:F>`;
+            const messageRef = ban.messageId
+              ? t(locale, 'setup.honeypotListMessageRef', { messageId: ban.messageId })
+              : t(locale, 'common.notSet');
+            return t(locale, 'setup.honeypotListEntry', {
+              user: `<@${ban.userId}>`,
+              timestamp,
+              messageRef,
+            });
+          });
+          embed.setDescription(lines.join('\n').slice(0, 4096));
+        }
+
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
       }
 

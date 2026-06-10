@@ -50,6 +50,15 @@ export type GrantableRoleRow = {
   updatedAt: number;
 };
 
+export type HoneypotBanRow = {
+  id: number;
+  guildId: string;
+  userId: string;
+  messageId: string | null;
+  channelId: string;
+  bannedAt: number;
+};
+
 export type ForumWatchRow = {
   id: number;
   guildId: string;
