@@ -18,6 +18,7 @@ import { GuildHealthService } from '../domain/guild-health-service.js';
 import { PermissionService } from '../domain/permission-service.js';
 import { ReminderService } from '../domain/reminder-service.js';
 import { RoleCleanupService } from '../domain/role-cleanup-service.js';
+import { HoneypotService } from '../domain/honeypot-service.js';
 import { RoleService } from '../domain/role-service.js';
 
 export type AppServices = {
@@ -29,6 +30,7 @@ export type AppServices = {
   roles: RoleService;
   forums: ForumWatchService;
   events: EventService;
+  honeypot: HoneypotService;
 };
 
 export type RuntimeContext = {
@@ -58,6 +60,7 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
   const forums = new ForumWatchService(forumWatches, guildConfig, logger);
   const events = new EventService(eventChannels, guildConfig, roles);
   const roleCleanup = new RoleCleanupService(database, roleCleanupJobs, roleCleanupMembers, guildConfig, logger);
+  const honeypot = new HoneypotService(guildConfig, permissions, logger);
   const health = new GuildHealthService(guildConfig, roles, forums, events, roleCleanup);
 
   return {
@@ -74,6 +77,7 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
       roles,
       forums,
       events,
+      honeypot,
     },
   };
 }

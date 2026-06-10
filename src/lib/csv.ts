@@ -6,7 +6,8 @@ type MemberCsvRow = {
 };
 
 function escapeCsvField(value: string) {
-  const normalized = value.replaceAll('"', '""');
+  const neutralized = /^[\s]*[=+\-@]/.test(value) ? `'${value}` : value;
+  const normalized = neutralized.replaceAll('"', '""');
   return `"${normalized}"`;
 }
 

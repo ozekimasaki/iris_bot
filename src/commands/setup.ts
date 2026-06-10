@@ -118,6 +118,44 @@ export const setupCommand: CommandDefinition = {
           '管理已配置的角色范围。',
         ),
       )
+      .addSubcommandGroup((group) =>
+        withDescriptionLocales(
+          group
+            .setName('honeypot')
+            .setDescription('Configure the honeypot trap channel.')
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('set')
+                  .setDescription('Set a text channel as the honeypot trap.')
+                  .addChannelOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('channel')
+                        .setDescription('Text channel to use as honeypot')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(true),
+                      'ハニーポットにするテキストチャンネル',
+                      '用作蜜罐的文本频道',
+                    ),
+                  ),
+                'テキストチャンネルをハニーポットに設定します。',
+                '将文本频道设为蜜罐陷阱。',
+              ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('clear')
+                  .setDescription('Remove the honeypot channel configuration.'),
+                'ハニーポットチャンネルの設定を解除します。',
+                '移除蜜罐频道设置。',
+              ),
+            ),
+          'ハニーポットチャンネルを設定します。',
+          '配置蜜罐陷阱频道。',
+        ),
+      )
       .addSubcommand((sub) =>
         withDescriptionLocales(
           sub
@@ -212,7 +250,7 @@ export const setupCommand: CommandDefinition = {
   meta: {
     name: 'setup',
     summary: 'Configure guild roles, categories, timezone, and language.',
-    usage: '/setup role add|remove|list, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
+    usage: '/setup role add|remove|list, /setup honeypot set|clear, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
     visibility: 'admin',
   },
   async execute(ctx, interaction) {
@@ -284,6 +322,31 @@ export const setupCommand: CommandDefinition = {
       }
 
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    if (group === 'honeypot') {
+      if (subcommand === 'set') {
+        const channel = interaction.options.getChannel('channel', true);
+        await ctx.services.guildConfig.setHoneypotChannel(interaction.guildId!, channel.id);
+        await interaction.reply({
+          embeds: [buildInfoEmbed(
+            t(locale, 'setup.honeypotSetTitle'),
+            t(locale, 'setup.honeypotSetDescription', { channel: String(channel) }),
+          )],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      await ctx.services.guildConfig.clearHoneypotChannel(interaction.guildId!);
+      await interaction.reply({
+        embeds: [buildInfoEmbed(
+          t(locale, 'setup.honeypotClearedTitle'),
+          t(locale, 'setup.honeypotClearedDescription'),
+        )],
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -381,6 +444,7 @@ export const setupCommand: CommandDefinition = {
         { name: t(locale, 'setup.defaultTimezoneField'), value: config.defaultTimezone || t(locale, 'common.notSet') },
         { name: t(locale, 'setup.eventCategoryField'), value: config.eventCategoryId ? `<#${config.eventCategoryId}>` : t(locale, 'common.notSet') },
         { name: t(locale, 'setup.archiveCategoryField'), value: config.archiveCategoryId ? `<#${config.archiveCategoryId}>` : t(locale, 'common.notSet') },
+        { name: t(locale, 'setup.honeypotChannelField'), value: config.honeypotChannelId ? `<#${config.honeypotChannelId}>` : t(locale, 'common.notSet') },
         { name: t(locale, 'setup.languageField'), value: getLanguageName(config.language, locale) },
         { name: t(locale, 'setup.adminRolesField'), value: config.roles.admin.length ? config.roles.admin.map((roleId) => `<@&${roleId}>`).join('\n') : t(locale, 'common.none') },
         { name: t(locale, 'setup.managerRolesField'), value: config.roles.manager.length ? config.roles.manager.map((roleId) => `<@&${roleId}>`).join('\n') : t(locale, 'common.none') },

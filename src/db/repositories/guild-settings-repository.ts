@@ -5,6 +5,7 @@ type GuildSettingsRecord = {
   guild_id: string;
   event_category_id: string | null;
   archive_category_id: string | null;
+  honeypot_channel_id: string | null;
   default_timezone: string;
   language: SupportedLocale;
   updated_at: number;
@@ -15,6 +16,7 @@ function mapGuildSettings(row: GuildSettingsRecord): GuildSettingsRow {
     guildId: row.guild_id,
     eventCategoryId: row.event_category_id,
     archiveCategoryId: row.archive_category_id,
+    honeypotChannelId: row.honeypot_channel_id,
     defaultTimezone: row.default_timezone,
     language: row.language,
     updatedAt: row.updated_at,
@@ -27,7 +29,7 @@ export class GuildSettingsRepository {
   findByGuildId(guildId: string): GuildSettingsRow | null {
     const row = this.db.get<GuildSettingsRecord>(
       `
-        SELECT guild_id, event_category_id, archive_category_id, default_timezone, language, updated_at
+        SELECT guild_id, event_category_id, archive_category_id, honeypot_channel_id, default_timezone, language, updated_at
         FROM guild_settings
         WHERE guild_id = :guildId
       `,
@@ -60,6 +62,7 @@ export class GuildSettingsRepository {
       guildId,
       eventCategoryId: null,
       archiveCategoryId: null,
+      honeypotChannelId: null,
       defaultTimezone: 'UTC',
       language: 'en' as const,
       updatedAt: now,
@@ -117,6 +120,39 @@ export class GuildSettingsRepository {
       {
         guildId,
         language,
+        updatedAt: now,
+      },
+    );
+  }
+
+  upsertHoneypotChannel(guildId: string, channelId: string) {
+    const now = Date.now();
+    this.db.run(
+      `
+        INSERT INTO guild_settings (guild_id, honeypot_channel_id, default_timezone, updated_at)
+        VALUES (:guildId, :channelId, 'UTC', :updatedAt)
+        ON CONFLICT(guild_id) DO UPDATE SET
+          honeypot_channel_id = excluded.honeypot_channel_id,
+          updated_at = excluded.updated_at
+      `,
+      {
+        guildId,
+        channelId,
+        updatedAt: now,
+      },
+    );
+  }
+
+  clearHoneypotChannel(guildId: string) {
+    const now = Date.now();
+    this.db.run(
+      `
+        UPDATE guild_settings
+        SET honeypot_channel_id = NULL, updated_at = :updatedAt
+        WHERE guild_id = :guildId
+      `,
+      {
+        guildId,
         updatedAt: now,
       },
     );

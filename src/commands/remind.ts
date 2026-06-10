@@ -1,7 +1,9 @@
 import {
   ActionRowBuilder,
   EmbedBuilder,
+  type GuildMember,
   MessageFlags,
+  PermissionFlagsBits,
   ModalBuilder,
   SlashCommandBuilder,
   TextInputBuilder,
@@ -183,6 +185,19 @@ export const remindCommand: CommandDefinition = {
     if (subcommand === 'set') {
       const { timezone, source } = await ctx.services.reminders.getEffectiveTimezone(interaction.guildId!, interaction.user.id);
       const timeInput = interaction.options.getString('time', true);
+      const targetRole = interaction.options.getRole('target_role');
+      if (targetRole) {
+        const member = interaction.member as GuildMember;
+        const allowed = await ctx.services.permissions.canRunManagerAction(interaction.guildId!, member);
+        if (!allowed || !member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+          await interaction.reply({
+            embeds: [buildErrorEmbed(t(locale, 'common.permissionDenied'), t(locale, 'remind.roleMentionPermissionDenied'))],
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+      }
+
       let parsed;
       try {
         parsed = parseHumanTimeInput(timeInput, timezone);
@@ -204,7 +219,7 @@ export const remindCommand: CommandDefinition = {
         timezoneSource: source,
         nextRunAt: parsed.utcMillis,
         targetUserId: interaction.options.getUser('target_user')?.id ?? null,
-        targetRoleId: interaction.options.getRole('target_role')?.id ?? null,
+        targetRoleId: targetRole?.id ?? null,
         repeatDays: interaction.options.getInteger('repeat_days'),
       });
 

@@ -31,6 +31,7 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 
 - `/help [topic]`
 - `/setup role add|remove|list`
+- `/setup honeypot set|clear`
 - `/setup event_categories`
 - `/setup timezone`
 - `/setup language`
@@ -55,6 +56,7 @@ All configuration is stored per guild in SQLite. There are no repo-tracked JSON 
 - Event category and archive category: one each per guild
 - Default timezone: one per guild
 - Language: one per guild
+- Honeypot channel: one text channel per guild (optional)
 
 Role scopes are:
 
@@ -93,6 +95,14 @@ Permission checks combine Discord permissions and configured role scopes.
   - one active grantable-role record
 - `/event archive` moves the channel to the archive category and deactivates the related grantable role
 - `/event list` shows active event records and marks missing channel or role references as stale
+
+### Honeypot
+
+- `/setup honeypot set` stores one text channel per guild in `guild_settings.honeypot_channel_id`
+- `messageCreate` triggers silent bans for users who post in the configured channel
+- Exempt: bots, guild owner, and members with configured `admin` or `manager` roles (or Discord Administrator)
+- No user-visible reply when a ban is applied
+- Requires `Ban Members`; message deletion before ban uses `Manage Messages` when available
 
 ### Role Cleanup
 
@@ -175,7 +185,8 @@ Command sync behavior:
 - Required gateway intents:
   - `Guilds`
   - `GuildMembers`
-- `Message Content` intent is not required
+  - `GuildMessages`
+  - `Message Content` (required when honeypot is used; enable in Discord Developer Portal)
 - Bot role must be above roles that Iris is expected to grant
 
 ## UX Decisions That Should Be Preserved
@@ -208,6 +219,7 @@ Command sync behavior:
 - `src/domain/forum-watch-service.ts`
 - `src/domain/event-service.ts`
 - `src/domain/role-cleanup-service.ts`
+- `src/domain/honeypot-service.ts`
 - `src/lib/i18n.ts`
 
 ## Verification Status
