@@ -1,12 +1,17 @@
 import { PermissionFlagsBits, type Message } from 'discord.js';
 import type { Logger } from 'pino';
+import { HoneypotBansRepository } from '../db/repositories/honeypot-bans-repository.js';
+import type { HoneypotBanRow } from '../db/types.js';
 import { GuildConfigService } from './guild-config-service.js';
 import { PermissionService } from './permission-service.js';
+
+const BAN_DELETE_MESSAGE_SECONDS = 86_400; // 24 hours
 
 export class HoneypotService {
   constructor(
     private readonly guildConfigService: GuildConfigService,
     private readonly permissionService: PermissionService,
+    private readonly honeypotBans: HoneypotBansRepository,
     private readonly logger: Logger,
   ) {}
 
@@ -35,13 +40,18 @@ export class HoneypotService {
       return;
     }
 
-    await message.delete().catch(() => undefined);
-
     try {
       await guild.members.ban(message.author.id, {
-        deleteMessageSeconds: 0,
+        deleteMessageSeconds: BAN_DELETE_MESSAGE_SECONDS,
         reason: 'Honeypot',
       });
+      this.honeypotBans.insert(
+        guild.id,
+        message.author.id,
+        message.id,
+        message.channelId,
+        Date.now(),
+      );
       this.logger.info({ guildId: guild.id, userId: message.author.id }, 'honeypot ban applied');
     } catch (error) {
       const botMember = guild.members.me;
@@ -51,5 +61,9 @@ export class HoneypotService {
         this.logger.error({ err: error, guildId: guild.id, userId: message.author.id }, 'honeypot ban failed');
       }
     }
+  }
+
+  listBans(guildId: string, limit: number): HoneypotBanRow[] {
+    return this.honeypotBans.listByGuild(guildId, limit);
   }
 }

@@ -31,7 +31,7 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 
 - `/help [topic]`
 - `/setup role add|remove|list`
-- `/setup honeypot set|clear`
+- `/setup honeypot set|clear|list`
 - `/setup event_categories`
 - `/setup timezone`
 - `/setup language`
@@ -99,10 +99,13 @@ Permission checks combine Discord permissions and configured role scopes.
 ### Honeypot
 
 - `/setup honeypot set` stores one text channel per guild in `guild_settings.honeypot_channel_id`
+- `/setup honeypot list` shows recent bans recorded by Iris in `honeypot_bans`
 - `messageCreate` triggers silent bans for users who post in the configured channel
 - Exempt: bots, guild owner, and members with configured `admin` or `manager` roles (or Discord Administrator)
 - No user-visible reply when a ban is applied
-- Requires `Ban Members`; message deletion before ban uses `Manage Messages` when available
+- On ban: uses `deleteMessageSeconds: 86400` to remove the user's messages from the past 24 hours guild-wide (Discord ban API)
+- Successful bans are stored in `honeypot_bans` with user ID, message ID, channel ID, and timestamp
+- Requires `Ban Members`
 
 ### Role Cleanup
 
@@ -157,6 +160,7 @@ Main tables:
 - `event_channels`
 - `role_cleanup_jobs`
 - `role_cleanup_members`
+- `honeypot_bans`
 
 ## Operational Commands
 

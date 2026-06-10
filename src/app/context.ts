@@ -6,6 +6,7 @@ import { EventChannelsRepository } from '../db/repositories/event-channels-repos
 import { ForumWatchesRepository } from '../db/repositories/forum-watches-repository.js';
 import { GrantableRolesRepository } from '../db/repositories/grantable-roles-repository.js';
 import { GuildRoleBindingsRepository } from '../db/repositories/guild-role-bindings-repository.js';
+import { HoneypotBansRepository } from '../db/repositories/honeypot-bans-repository.js';
 import { GuildSettingsRepository } from '../db/repositories/guild-settings-repository.js';
 import { RemindersRepository } from '../db/repositories/reminders-repository.js';
 import { RoleCleanupJobsRepository } from '../db/repositories/role-cleanup-jobs-repository.js';
@@ -52,6 +53,7 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
   const eventChannels = new EventChannelsRepository(database);
   const roleCleanupJobs = new RoleCleanupJobsRepository(database);
   const roleCleanupMembers = new RoleCleanupMembersRepository(database);
+  const honeypotBans = new HoneypotBansRepository(database);
 
   const guildConfig = new GuildConfigService(guildSettings, roleBindings);
   const roles = new RoleService(grantableRoles);
@@ -60,7 +62,7 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
   const forums = new ForumWatchService(forumWatches, guildConfig, logger);
   const events = new EventService(eventChannels, guildConfig, roles);
   const roleCleanup = new RoleCleanupService(database, roleCleanupJobs, roleCleanupMembers, guildConfig, logger);
-  const honeypot = new HoneypotService(guildConfig, permissions, logger);
+  const honeypot = new HoneypotService(guildConfig, permissions, honeypotBans, logger);
   const health = new GuildHealthService(guildConfig, roles, forums, events, roleCleanup);
 
   return {
