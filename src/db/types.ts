@@ -25,6 +25,7 @@ export type GuildSettingsRow = {
   guildId: string;
   eventCategoryId: string | null;
   archiveCategoryId: string | null;
+  honeypotChannelId: string | null;
   defaultTimezone: string;
   language: SupportedLocale;
   updatedAt: number;

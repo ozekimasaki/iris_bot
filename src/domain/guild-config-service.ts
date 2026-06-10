@@ -9,6 +9,7 @@ export type GuildConfig = {
   defaultTimezone: string;
   eventCategoryId: string | null;
   archiveCategoryId: string | null;
+  honeypotChannelId: string | null;
   language: SupportedLocale;
   roles: Record<RoleScope, string[]>;
 };
@@ -44,6 +45,7 @@ export class GuildConfigService {
       defaultTimezone: settings.defaultTimezone,
       eventCategoryId: settings.eventCategoryId,
       archiveCategoryId: settings.archiveCategoryId,
+      honeypotChannelId: settings.honeypotChannelId,
       language: settings.language,
       roles,
     };
@@ -87,6 +89,21 @@ export class GuildConfigService {
 
     await this.ensureGuildSettings(guildId);
     this.guildSettings.upsertLanguage(guildId, language);
+  }
+
+  async setHoneypotChannel(guildId: string, channelId: string) {
+    await this.ensureGuildSettings(guildId);
+    this.guildSettings.upsertHoneypotChannel(guildId, channelId);
+  }
+
+  async clearHoneypotChannel(guildId: string) {
+    await this.ensureGuildSettings(guildId);
+    this.guildSettings.clearHoneypotChannel(guildId);
+  }
+
+  async getHoneypotChannelId(guildId: string): Promise<string | null> {
+    const settings = await this.ensureGuildSettings(guildId);
+    return settings.honeypotChannelId;
   }
 
   async getLanguage(guildId: string): Promise<SupportedLocale> {

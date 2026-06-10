@@ -14,6 +14,7 @@ import { RoleCleanupMembersRepository } from '../db/repositories/role-cleanup-me
 import { advanceReminderTimestamp, parseHumanTimeInput } from '../lib/time.js';
 import { GuildConfigService } from '../domain/guild-config-service.js';
 import type { RoleService } from '../domain/role-service.js';
+import { buildMemberCsv } from '../lib/csv.js';
 
 const now = DateTime.fromISO('2026-03-15T18:30:00', { zone: 'Asia/Tokyo' });
 const nextDay = parseHumanTimeInput('18:00', 'Asia/Tokyo', now);
@@ -26,6 +27,14 @@ assert.equal(relative.utcMillis, DateTime.fromISO('2026-03-15T18:40:00Z').toMill
 const current = DateTime.fromISO('2026-03-15T09:00:00', { zone: 'Asia/Tokyo' }).toUTC().toMillis();
 const next = advanceReminderTimestamp(current, 'Asia/Tokyo', 7);
 assert.equal(next, DateTime.fromISO('2026-03-22T09:00:00', { zone: 'Asia/Tokyo' }).toUTC().toMillis());
+
+const memberCsv = buildMemberCsv([
+  { userId: 'user-1', displayName: '=HYPERLINK("https://example.com")', globalName: '+SUM(1,1)', username: '@mention' },
+  { userId: 'user-2', displayName: 'normal', globalName: 'safe', username: 'plain' },
+]);
+assert.match(memberCsv, /"'=HYPERLINK\(""https:\/\/example\.com""\)"/);
+assert.match(memberCsv, /"'\+SUM\(1,1\)"/);
+assert.match(memberCsv, /"'@mention"/);
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iris-smoke-'));
 const databasePath = path.join(tempRoot, 'iris.db');
@@ -54,6 +63,13 @@ assert.equal(config.language, 'en');
 
 await guildConfig.setLanguage('guild-1', 'ja');
 assert.equal(await guildConfig.getLanguage('guild-1'), 'ja');
+
+await guildConfig.setHoneypotChannel('guild-1', 'honeypot-channel');
+assert.equal(await guildConfig.getHoneypotChannelId('guild-1'), 'honeypot-channel');
+assert.equal((await guildConfig.getGuildConfig('guild-1')).honeypotChannelId, 'honeypot-channel');
+
+await guildConfig.clearHoneypotChannel('guild-1');
+assert.equal(await guildConfig.getHoneypotChannelId('guild-1'), null);
 
 eventChannels.insert('guild-1', 'channel-1', 'event-role-1', 'Spring Meetup', 'user-1');
 const activeEvents = await eventChannels.listActiveByGuild('guild-1', 10, 0);

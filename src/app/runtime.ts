@@ -119,6 +119,8 @@ export function createBot(env: AppEnv, logger: Logger) {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
     ],
   });
 
@@ -135,6 +137,14 @@ export function createBot(env: AppEnv, logger: Logger) {
         const locale = interaction.inGuild() ? await runtime.services.guildConfig.getLanguage(interaction.guildId!) : 'en';
         await interaction.reply({ content: t(locale, 'common.unexpectedError'), flags: MessageFlags.Ephemeral });
       }
+    }
+  });
+
+  client.on(Events.MessageCreate, async (message) => {
+    try {
+      await runtime.services.honeypot.handleMessage(message);
+    } catch (error) {
+      logger.error({ err: error, messageId: message.id }, 'honeypot handler failed');
     }
   });
 
