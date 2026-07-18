@@ -19,13 +19,32 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 - `pino` for logging
 - `zod` for env validation
 
+## Setup
+
+- Requires Bun 1.3+ (`packageManager` is pinned to `bun@1.3.10`; `mise.toml` and `.prototools` also pin it).
+- Install dependencies with `bun install`.
+- Copy `.env.example` to `.env` and fill in `DISCORD_TOKEN` and `DISCORD_APPLICATION_ID`.
+- No external database server is needed; `bun:sqlite` creates the SQLite file (and its parent directory) at `DATABASE_PATH`, defaulting to `./data/iris.db`.
+
+## Repository Layout
+
+- `src/app/` — env loading (`env.ts`), logger (`logger.ts`), runtime wiring (`runtime.ts`), context/DI (`context.ts`), command sync CLI (`command-sync.ts`)
+- `src/commands/` — one file per top-level slash command, registered via `index.ts`
+- `src/domain/` — business logic services
+- `src/db/` — SQLite client, migration runner, repositories (`db/repositories/`)
+- `src/lib/` — helpers: `i18n.ts`, `command-localizations.ts`, `time.ts`, `csv.ts`, `discord.ts`
+- `src/test/smoke.ts` — smoke test entry point
+- `migrations/` — numbered SQL migration files
+- `systemd/` — Ubuntu systemd unit and operations docs
+
 ## Entry Points
 
 - App bootstrap: `src/index.ts`
 - Runtime wiring: `src/app/runtime.ts`
 - Service/repository composition: `src/app/context.ts`
 - Command sync CLI: `src/app/command-sync.ts`
-- SQL migration runner: `src/db/migrations.ts`
+- Migration runner logic: `src/db/migrations.ts` (`applyMigrations`)
+- `db:migrate` CLI entry point: `src/db/migrate.ts`
 
 ## Current Slash Commands
 
@@ -164,12 +183,19 @@ Main tables:
 
 ## Operational Commands
 
-- `bun run dev`
-- `bun run build`
-- `bun run start`
-- `bun run test`
-- `bun run db:migrate`
-- `bun run commands:sync`
+- `bun run dev` — start the bot with file watching
+- `bun run start` — start the bot once
+- `bun run build` — type-check only (`tsc --noEmit --project tsconfig.json`)
+- `bun run test` — run smoke tests (`src/test/smoke.ts`)
+- `bun run db:migrate` — apply pending SQL migrations
+- `bun run commands:sync` — sync slash commands to Discord
+
+Build / test / lint / typecheck notes:
+
+- Typecheck: `bun run build` (it runs `tsc --noEmit`; there is no separate typecheck script).
+- Test: `bun run test`.
+- Lint: there is no lint or formatter script configured in this repo.
+- After code changes, run `bun run build` and `bun run test` before committing.
 
 Command sync behavior:
 
@@ -192,6 +218,17 @@ Command sync behavior:
   - `GuildMessages`
   - `Message Content` (required when honeypot is used; enable in Discord Developer Portal)
 - Bot role must be above roles that Iris is expected to grant
+
+## Coding Conventions
+
+- TypeScript with `strict` mode enabled (see `tsconfig.json`); avoid `any`.
+- ESM only (`"type": "module"`). Relative imports must include the `.js` extension (e.g. `./app/env.js`), matching `verbatimModuleSyntax` and `module: "Preserve"`.
+- Use `import type` / `type` modifiers for type-only imports (`verbatimModuleSyntax` is on).
+- Observed style: 2-space indentation, single quotes, semicolons.
+- Environment access goes through `src/app/env.ts` (zod-validated); do not read `process.env` directly elsewhere.
+- Database access goes through the repositories in `src/db/repositories/`; there is no ORM.
+- New SQL schema changes are added as new numbered files in `migrations/` (do not edit already-applied migrations).
+- User-facing strings should be localized via `src/lib/i18n.ts` (`t(...)`), not hard-coded.
 
 ## UX Decisions That Should Be Preserved
 
