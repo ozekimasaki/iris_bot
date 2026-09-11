@@ -1,26 +1,18 @@
-import {
-  ButtonStyle,
-  MessageFlags,
-  SlashCommandBuilder,
-  type GuildMember,
-  type StringSelectMenuInteraction,
-} from 'discord.js';
+import { MessageFlags, SlashCommandBuilder, type ButtonInteraction, type GuildMember } from 'discord.js';
 import { withDescriptionLocales } from '../lib/command-localizations.js';
-import { buildConfirmRow, buildErrorEmbed, buildInfoEmbed } from '../lib/discord.js';
+import { buildErrorEmbed, buildInfoEmbed } from '../lib/discord.js';
 import { t } from '../lib/i18n.js';
-import { buildRegionCommandChoices, getRegionName, getRegionPrefectures, isRegionKey, type RegionKey } from '../lib/regions.js';
+import { buildRegionCommandChoices, getRegionName, isRegionKey, type RegionKey } from '../lib/regions.js';
 import {
-  REGION_CANCEL_PREFIX,
-  REGION_PANEL_SELECT_ID,
-  REGION_PICK_SELECT_ID,
-  buildRegionCancelCustomId,
-  buildRegionConfirmCustomId,
-  buildRegionSelectRow,
+  REGION_CLEAR_ID,
+  buildRegionButtonRows,
+  buildRegionGuideText,
   mapRegionError,
-  parseRegionConfirmCustomId,
+  parseRegionAssignCustomId,
 } from '../lib/region-ui.js';
 import type { SupportedLocale } from '../db/types.js';
 import type { CommandContext, CommandDefinition } from './types.js';
+import type { RegionAssignmentResult } from '../domain/region-service.js';
 
 function configuredOrSetupError(ctx: CommandContext, guildId: string, locale: SupportedLocale):
   | { regions: Array<{ key: RegionKey; roleId: string }>; error: null }
@@ -39,41 +31,62 @@ function configuredOrSetupError(ctx: CommandContext, guildId: string, locale: Su
   return { regions, error: null };
 }
 
-function buildConfirmPayload(locale: SupportedLocale, regionKey: RegionKey, userId: string) {
+function buildPickerPayload(locale: SupportedLocale, introKey: string, regions: Array<{ key: RegionKey; roleId: string }>) {
   return {
-    embeds: [buildInfoEmbed(
-      t(locale, 'region.confirmTitle'),
-      t(locale, 'region.confirmDescription', {
-        region: getRegionName(locale, regionKey),
-        prefectures: getRegionPrefectures(locale, regionKey),
-      }),
-    )],
-    components: [buildConfirmRow(
-      buildRegionConfirmCustomId(regionKey, userId),
-      buildRegionCancelCustomId(userId),
-      {
-        confirm: t(locale, 'common.confirm'),
-        cancel: t(locale, 'common.cancel'),
-        confirmStyle: ButtonStyle.Success,
-      },
-    )],
+    embeds: [buildInfoEmbed(t(locale, 'region.promptTitle'), buildRegionGuideText(locale, introKey, regions))],
+    components: buildRegionButtonRows(locale, regions),
   };
+}
+
+function buildAssignmentEmbed(locale: SupportedLocale, result: RegionAssignmentResult) {
+  const roleLabel = `<@&${result.roleId}>`;
+  const regionLabel = getRegionName(locale, result.regionKey);
+  if (result.unchanged) {
+    return buildInfoEmbed(
+      t(locale, 'region.unchangedTitle'),
+      t(locale, 'region.unchangedDescription', { role: roleLabel, region: regionLabel }),
+    );
+  }
+
+  const description = [
+    t(locale, 'region.assignedDescription', { role: roleLabel, region: regionLabel }),
+    result.previousRegionKey && result.previousRegionKey !== result.regionKey
+      ? t(locale, 'region.changedNote')
+      : null,
+  ].filter(Boolean).join('\n');
+
+  return buildInfoEmbed(t(locale, 'region.assignedTitle'), description);
 }
 
 async function resolveGuildMember(interaction: { guild: { members: { fetch: (id: string) => Promise<GuildMember> } } | null; user: { id: string } }) {
   return interaction.guild!.members.fetch(interaction.user.id);
 }
 
+async function replyToRegionButton(
+  interaction: ButtonInteraction,
+  payload: { embeds: ReturnType<typeof buildInfoEmbed | typeof buildErrorEmbed>[] },
+) {
+  if (interaction.message.flags.has(MessageFlags.Ephemeral)) {
+    await interaction.update(payload);
+    return;
+  }
+
+  await interaction.reply({
+    ...payload,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 export const regionCommand: CommandDefinition = {
   data: withDescriptionLocales(
     new SlashCommandBuilder()
       .setName('region')
-      .setDescription('Confirm your Japanese region and receive the matching role.')
+      .setDescription('Press a region button to get the matching role.')
       .addSubcommand((sub) =>
         withDescriptionLocales(
           sub
             .setName('set')
-            .setDescription('Confirm your region and receive the matching region role.')
+            .setDescription('Press a region button to get the matching role.')
             .addStringOption((option) =>
               withDescriptionLocales(
                 option
@@ -85,17 +98,17 @@ export const regionCommand: CommandDefinition = {
                 '日本地区（不是都道府县）',
               ),
             ),
-          '地方を確認して、対応する地域ロールを付与します。',
-          '确认所在地区并获得对应的地区身份组。',
+          '地方ボタンを押して地域ロールを付けます。',
+          '按下地区按钮即可获得对应身份组。',
         ),
       )
       .addSubcommand((sub) =>
         withDescriptionLocales(
           sub
             .setName('show')
-            .setDescription('Show your currently confirmed region.'),
-          '確認済みの地方を表示します。',
-          '显示你已确认的地区。',
+            .setDescription('Show your current region role.'),
+          '現在の地域ロールを表示します。',
+          '显示你当前的地区身份组。',
         ),
       )
       .addSubcommand((sub) =>
@@ -107,12 +120,12 @@ export const regionCommand: CommandDefinition = {
           '移除你的地区身份组。',
         ),
       ),
-    '地方を確認して地域ロールを付与します。',
-    '确认地区并分配地区身份组。',
+    '地方ボタンを押して地域ロールを付けます。',
+    '按下地区按钮即可获得对应身份组。',
   ),
   meta: {
     name: 'region',
-    summary: 'Confirm your Japanese region and receive the matching region role.',
+    summary: 'Press a region button to get the matching region role.',
     usage: '/region set [region], /region show, /region clear',
     visibility: 'everyone',
   },
@@ -138,8 +151,7 @@ export const regionCommand: CommandDefinition = {
       const selected = interaction.options.getString('region');
       if (!selected) {
         await interaction.reply({
-          embeds: [buildInfoEmbed(t(locale, 'region.promptTitle'), t(locale, 'region.promptDescription'))],
-          components: [buildRegionSelectRow(locale, REGION_PICK_SELECT_ID, setup.regions)],
+          ...buildPickerPayload(locale, 'region.promptDescription', setup.regions),
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -153,21 +165,20 @@ export const regionCommand: CommandDefinition = {
         return;
       }
 
-      if (!setup.regions.some((region) => region.key === selected)) {
+      try {
+        const member = await resolveGuildMember(interaction);
+        const result = await ctx.services.regions.assignRegion(interaction.guild!, member, selected);
         await interaction.reply({
-          embeds: [buildErrorEmbed(
-            t(locale, 'region.notConfiguredTitle'),
-            t(locale, 'region.notConfiguredDescription', { region: getRegionName(locale, selected) }),
-          )],
+          embeds: [buildAssignmentEmbed(locale, result)],
           flags: MessageFlags.Ephemeral,
         });
-        return;
+      } catch (error) {
+        const message = mapRegionError(locale, error, { region: getRegionName(locale, selected) });
+        await interaction.reply({
+          embeds: [buildErrorEmbed(message.title, message.description)],
+          flags: MessageFlags.Ephemeral,
+        });
       }
-
-      await interaction.reply({
-        ...buildConfirmPayload(locale, selected, interaction.user.id),
-        flags: MessageFlags.Ephemeral,
-      });
       return;
     }
 
@@ -213,137 +224,43 @@ export const regionCommand: CommandDefinition = {
       });
     }
   },
-  async handleSelectMenu(ctx, interaction: StringSelectMenuInteraction) {
-    if (!interaction.inGuild()) {
-      return false;
-    }
-
-    const isPick = interaction.customId === REGION_PICK_SELECT_ID;
-    const isPanel = interaction.customId === REGION_PANEL_SELECT_ID;
-    if (!isPick && !isPanel) {
-      return false;
-    }
-
-    const locale = await ctx.services.guildConfig.getLanguage(interaction.guildId!);
-    const setup = configuredOrSetupError(ctx, interaction.guildId!, locale);
-    if (!setup.regions) {
-      const payload = {
-        embeds: [buildErrorEmbed(setup.error.title, setup.error.description)],
-        components: [],
-      };
-      if (isPanel) {
-        await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.update(payload);
-      }
-      return true;
-    }
-
-    const selected = interaction.values[0];
-    if (!selected || !isRegionKey(selected) || !setup.regions.some((region) => region.key === selected)) {
-      const payload = {
-        embeds: [buildErrorEmbed(
-          t(locale, 'region.notConfiguredTitle'),
-          t(locale, 'region.notConfiguredDescription', {
-            region: selected && isRegionKey(selected) ? getRegionName(locale, selected) : t(locale, 'common.notSet'),
-          }),
-        )],
-        components: [],
-      };
-      if (isPanel) {
-        await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.update(payload);
-      }
-      return true;
-    }
-
-    const payload = buildConfirmPayload(locale, selected, interaction.user.id);
-    if (isPanel) {
-      await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
-    } else {
-      await interaction.update(payload);
-    }
-    return true;
-  },
   async handleButton(ctx, interaction) {
     if (!interaction.inGuild()) {
       return false;
     }
 
     const locale = await ctx.services.guildConfig.getLanguage(interaction.guildId!);
-    if (interaction.customId.startsWith(REGION_CANCEL_PREFIX)) {
-      const ownerId = interaction.customId.split(':')[2];
-      if (interaction.user.id !== ownerId) {
-        await interaction.reply({
-          embeds: [buildErrorEmbed(t(locale, 'common.notAllowed'), t(locale, 'region.confirmOwnerOnly'))],
-          flags: MessageFlags.Ephemeral,
+    if (interaction.customId === REGION_CLEAR_ID) {
+      try {
+        const member = await resolveGuildMember(interaction);
+        await ctx.services.regions.clearRegion(interaction.guild!, member);
+        await replyToRegionButton(interaction, {
+          embeds: [buildInfoEmbed(t(locale, 'region.clearedTitle'), t(locale, 'region.clearedDescription'))],
         });
-        return true;
+      } catch (error) {
+        const message = mapRegionError(locale, error);
+        await replyToRegionButton(interaction, {
+          embeds: [buildErrorEmbed(message.title, message.description)],
+        });
       }
-
-      await interaction.update({
-        embeds: [buildInfoEmbed(t(locale, 'region.cancelledTitle'), t(locale, 'region.cancelledDescription'))],
-        components: [],
-      });
       return true;
     }
 
-    const parsed = parseRegionConfirmCustomId(interaction.customId);
-    if (!parsed) {
+    const regionKey = parseRegionAssignCustomId(interaction.customId);
+    if (!regionKey) {
       return false;
-    }
-
-    if (interaction.user.id !== parsed.ownerId) {
-      await interaction.reply({
-        embeds: [buildErrorEmbed(t(locale, 'common.notAllowed'), t(locale, 'region.confirmOwnerOnly'))],
-        flags: MessageFlags.Ephemeral,
-      });
-      return true;
-    }
-
-    if (!isRegionKey(parsed.regionKey)) {
-      await interaction.update({
-        embeds: [buildErrorEmbed(t(locale, 'region.unknownRegionTitle'), t(locale, 'region.unknownRegionDescription'))],
-        components: [],
-      });
-      return true;
     }
 
     try {
       const member = await resolveGuildMember(interaction);
-      const result = await ctx.services.regions.assignRegion(interaction.guild!, member, parsed.regionKey);
-      const roleLabel = `<@&${result.roleId}>`;
-      const regionLabel = getRegionName(locale, result.regionKey);
-      if (result.unchanged) {
-        await interaction.update({
-          embeds: [buildInfoEmbed(
-            t(locale, 'region.unchangedTitle'),
-            t(locale, 'region.unchangedDescription', { role: roleLabel, region: regionLabel }),
-          )],
-          components: [],
-        });
-        return true;
-      }
-
-      const description = [
-        t(locale, 'region.assignedDescription', { role: roleLabel }),
-        result.previousRegionKey && result.previousRegionKey !== result.regionKey
-          ? t(locale, 'region.changedNote')
-          : null,
-      ].filter(Boolean).join('\n');
-
-      await interaction.update({
-        embeds: [buildInfoEmbed(t(locale, 'region.assignedTitle'), description)],
-        components: [],
+      const result = await ctx.services.regions.assignRegion(interaction.guild!, member, regionKey);
+      await replyToRegionButton(interaction, {
+        embeds: [buildAssignmentEmbed(locale, result)],
       });
     } catch (error) {
-      const message = mapRegionError(locale, error, {
-        region: getRegionName(locale, parsed.regionKey),
-      });
-      await interaction.update({
+      const message = mapRegionError(locale, error, { region: getRegionName(locale, regionKey) });
+      await replyToRegionButton(interaction, {
         embeds: [buildErrorEmbed(message.title, message.description)],
-        components: [],
       });
     }
 

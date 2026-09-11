@@ -1,62 +1,75 @@
 import {
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from 'discord.js';
 import type { SupportedLocale } from '../db/types.js';
 import { t } from './i18n.js';
-import { getRegionName, getRegionPrefectures, type RegionKey } from './regions.js';
+import { getRegionName, getRegionPrefectures, isRegionKey, type RegionKey } from './regions.js';
 
-export const REGION_PICK_SELECT_ID = 'region:pick';
-export const REGION_PANEL_SELECT_ID = 'region:panel';
-export const REGION_CONFIRM_PREFIX = 'confirm:region';
-export const REGION_CANCEL_PREFIX = 'cancel:region';
+export const REGION_ASSIGN_PREFIX = 'region:assign';
+export const REGION_CLEAR_ID = 'region:clear';
 
-const SELECT_DESCRIPTION_MAX = 100;
+const BUTTONS_PER_ROW = 5;
 
-export function buildRegionSelectRow(
+export function buildRegionAssignCustomId(regionKey: RegionKey) {
+  return `${REGION_ASSIGN_PREFIX}:${regionKey}`;
+}
+
+export function parseRegionAssignCustomId(customId: string) {
+  if (!customId.startsWith(`${REGION_ASSIGN_PREFIX}:`)) {
+    return null;
+  }
+
+  const regionKey = customId.slice(`${REGION_ASSIGN_PREFIX}:`.length);
+  return isRegionKey(regionKey) ? regionKey : null;
+}
+
+export function buildRegionGuideText(
   locale: SupportedLocale,
-  customId: string,
+  introKey: string,
   regions: Array<{ key: RegionKey; roleId: string }>,
 ) {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(customId)
-    .setPlaceholder(t(locale, 'region.selectPlaceholder'))
-    .setMinValues(1)
-    .setMaxValues(1);
+  const lines = regions.map((region) => (
+    t(locale, 'region.panelLine', {
+      region: getRegionName(locale, region.key),
+      prefectures: getRegionPrefectures(locale, region.key),
+    })
+  ));
 
-  for (const region of regions) {
-    const description = getRegionPrefectures(locale, region.key).slice(0, SELECT_DESCRIPTION_MAX);
-    menu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(getRegionName(locale, region.key))
-        .setValue(region.key)
-        .setDescription(description),
+  return [t(locale, introKey), '', ...lines].join('\n');
+}
+
+export function buildRegionButtonRows(
+  locale: SupportedLocale,
+  regions: Array<{ key: RegionKey; roleId: string }>,
+) {
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+
+  for (let index = 0; index < regions.length; index += BUTTONS_PER_ROW) {
+    const chunk = regions.slice(index, index + BUTTONS_PER_ROW);
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...chunk.map((region) => (
+          new ButtonBuilder()
+            .setCustomId(buildRegionAssignCustomId(region.key))
+            .setLabel(getRegionName(locale, region.key))
+            .setStyle(ButtonStyle.Primary)
+        )),
+      ),
     );
   }
 
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-}
+  rows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(REGION_CLEAR_ID)
+        .setLabel(t(locale, 'region.clearButton'))
+        .setStyle(ButtonStyle.Secondary),
+    ),
+  );
 
-export function buildRegionConfirmCustomId(regionKey: RegionKey, userId: string) {
-  return `${REGION_CONFIRM_PREFIX}:${regionKey}:${userId}`;
-}
-
-export function buildRegionCancelCustomId(userId: string) {
-  return `${REGION_CANCEL_PREFIX}:${userId}`;
-}
-
-export function parseRegionConfirmCustomId(customId: string) {
-  if (!customId.startsWith(`${REGION_CONFIRM_PREFIX}:`)) {
-    return null;
-  }
-
-  const [, , regionKey, ownerId] = customId.split(':');
-  if (!regionKey || !ownerId) {
-    return null;
-  }
-
-  return { regionKey, ownerId };
+  return rows;
 }
 
 export function mapRegionError(

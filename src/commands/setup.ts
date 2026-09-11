@@ -8,7 +8,7 @@ import {
 import { withDescriptionLocales } from '../lib/command-localizations.js';
 import { getLanguageName, getScopeName, t } from '../lib/i18n.js';
 import { buildRegionCommandChoices, getRegionName, isRegionKey, regionKeys, type RegionKey } from '../lib/regions.js';
-import { REGION_PANEL_SELECT_ID, buildRegionSelectRow, mapRegionError } from '../lib/region-ui.js';
+import { buildRegionButtonRows, buildRegionGuideText, mapRegionError } from '../lib/region-ui.js';
 import type { RoleScope, SupportedLocale } from '../db/types.js';
 import { buildErrorEmbed, buildInfoEmbed } from '../lib/discord.js';
 import { isValidTimeZone } from '../lib/time.js';
@@ -271,7 +271,7 @@ export const setupCommand: CommandDefinition = {
               withDescriptionLocales(
                 sub
                   .setName('panel')
-                  .setDescription('Post a public region confirmation panel.')
+                  .setDescription('Post a public region role button panel.')
                   .addChannelOption((option) =>
                     withDescriptionLocales(
                       option
@@ -283,8 +283,8 @@ export const setupCommand: CommandDefinition = {
                       '发布面板的文本频道',
                     ),
                   ),
-                '地方確認用の公開パネルを投稿します。',
-                '发布公开的地区确认面板。',
+                '地方ロール用のボタンパネルを投稿します。',
+                '发布地区身份组按钮面板。',
               ),
             ),
           '日本の地方ロールを設定します。',
@@ -671,8 +671,11 @@ export const setupCommand: CommandDefinition = {
       }
 
       await targetChannel.send({
-        embeds: [buildInfoEmbed(t(locale, 'region.panelTitle'), t(locale, 'region.panelDescription'))],
-        components: [buildRegionSelectRow(locale, REGION_PANEL_SELECT_ID, configured)],
+        embeds: [buildInfoEmbed(
+          t(locale, 'region.panelTitle'),
+          buildRegionGuideText(locale, 'region.panelDescription', configured),
+        )],
+        components: buildRegionButtonRows(locale, configured),
       });
       await interaction.reply({
         embeds: [buildInfoEmbed(

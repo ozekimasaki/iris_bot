@@ -141,10 +141,11 @@ Permission checks combine Discord permissions and configured role scopes.
 - Regions are Japanese 地方 groups, not prefectures: Hokkaido, Tohoku, Kanto, Chubu, Kinki, Chugoku, Shikoku, Kyushu, Okinawa, Overseas
 - `/setup region set` binds an existing Discord role to one region
 - `/setup region create_roles` creates missing region roles (guild language names) and binds them
-- `/setup region panel` posts a public select menu so members can confirm a region without using a slash command
-- `/region set` shows configured regions, then asks the member to confirm prefecture grouping before assigning the role
-- A member keeps only one region role at a time; assigning a new region removes other bound region roles
-- `/region show` and `/region clear` are self-serve
+- `/setup region panel` posts a public button panel so members can get a region role by pressing a button
+- Pressing a region button assigns that role immediately and removes other region roles
+- `/region set` shows the same buttons, or assigns immediately when a region is passed
+- A member keeps only one region role at a time
+- `/region show` and `/region clear` are self-serve; the panel also has a button to remove the role
 - Region roles are not added to the `/role grant` allow-list
 - Requires `Manage Roles`, and the bot role must be above the bound region roles
 
@@ -253,7 +254,7 @@ Command sync behavior:
 - Prefer `/setup event_categories` in all new UX and docs
 - Role granting is allow-list based
   - Iris does not support unrestricted arbitrary role assignment
-- Region roles are grouped by Japanese 地方, not prefectures, and members confirm before assignment
+- Region roles are grouped by Japanese 地方, not prefectures, and members get a role by pressing a button
 - Forum notifications mention only configured `forum_notice` roles via `allowedMentions`
 - Help output is permission-aware
 

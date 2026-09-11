@@ -18,6 +18,7 @@ import { GuildConfigService } from '../domain/guild-config-service.js';
 import { RegionService } from '../domain/region-service.js';
 import type { RoleService } from '../domain/role-service.js';
 import { getRegionName, getRegionPrefectures, isRegionKey, regionKeys } from '../lib/regions.js';
+import { parseRegionAssignCustomId } from '../lib/region-ui.js';
 import { MemberRegionsRepository } from '../db/repositories/member-regions-repository.js';
 import { RegionRoleBindingsRepository } from '../db/repositories/region-role-bindings-repository.js';
 import { buildMemberCsv } from '../lib/csv.js';
@@ -187,6 +188,8 @@ assert.match(getRegionPrefectures('ja', 'kinki'), /三重/);
 assert.doesNotMatch(getRegionPrefectures('ja', 'chubu'), /三重/);
 assert.match(getRegionPrefectures('ja', 'kanto'), /東京/);
 assert.equal(getRegionName('ja', 'overseas'), '海外');
+assert.equal(parseRegionAssignCustomId('region:assign:kanto'), 'kanto');
+assert.equal(parseRegionAssignCustomId('region:assign:tokyo'), null);
 assert.equal(buildCommands().some((command) => command.meta.name === 'region'), true);
 
 const silentLogger = {
