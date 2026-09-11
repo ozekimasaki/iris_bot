@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ChannelType, type Guild } from 'discord.js';
+import { ChannelType, Collection, PermissionFlagsBits, type Guild, type GuildMember, type Role } from 'discord.js';
 import { DateTime } from 'luxon';
+import type { Logger } from 'pino';
 import { createDatabase } from '../db/client.js';
 import { EventChannelsRepository } from '../db/repositories/event-channels-repository.js';
 import { GuildRoleBindingsRepository } from '../db/repositories/guild-role-bindings-repository.js';
@@ -14,8 +15,13 @@ import { RoleCleanupJobsRepository } from '../db/repositories/role-cleanup-jobs-
 import { RoleCleanupMembersRepository } from '../db/repositories/role-cleanup-members-repository.js';
 import { advanceReminderTimestamp, parseHumanTimeInput } from '../lib/time.js';
 import { GuildConfigService } from '../domain/guild-config-service.js';
+import { RegionService } from '../domain/region-service.js';
 import type { RoleService } from '../domain/role-service.js';
+import { getRegionName, getRegionPrefectures, isRegionKey, regionKeys } from '../lib/regions.js';
+import { MemberRegionsRepository } from '../db/repositories/member-regions-repository.js';
+import { RegionRoleBindingsRepository } from '../db/repositories/region-role-bindings-repository.js';
 import { buildMemberCsv } from '../lib/csv.js';
+import { buildCommands } from '../commands/index.js';
 
 const now = DateTime.fromISO('2026-03-15T18:30:00', { zone: 'Asia/Tokyo' });
 const nextDay = parseHumanTimeInput('18:00', 'Asia/Tokyo', now);
@@ -173,6 +179,133 @@ cleanupJobs.rescheduleForRetry(cleanupJobId, Date.now());
 assert.equal(cleanupJobs.findByGuildAndId('guild-1', cleanupJobId)?.status, 'active');
 cleanupJobs.cancel(cleanupJobId);
 assert.equal(cleanupJobs.findByGuildAndId('guild-1', cleanupJobId)?.status, 'cancelled');
+
+assert.equal(regionKeys.length, 10);
+assert.equal(isRegionKey('kanto'), true);
+assert.equal(isRegionKey('tokyo'), false);
+assert.match(getRegionPrefectures('ja', 'kinki'), /三重/);
+assert.doesNotMatch(getRegionPrefectures('ja', 'chubu'), /三重/);
+assert.match(getRegionPrefectures('ja', 'kanto'), /東京/);
+assert.equal(getRegionName('ja', 'overseas'), '海外');
+assert.equal(buildCommands().some((command) => command.meta.name === 'region'), true);
+
+const silentLogger = {
+  error() {},
+  info() {},
+  warn() {},
+} as unknown as Logger;
+
+const regionBindings = new RegionRoleBindingsRepository(database);
+const memberRegions = new MemberRegionsRepository(database);
+const regionService = new RegionService(regionBindings, memberRegions, silentLogger);
+
+type FakeRole = {
+  id: string;
+  name: string;
+  position: number;
+  managed: boolean;
+};
+
+function createFakeRole(id: string, name: string, position: number, managed = false): FakeRole {
+  return { id, name, position, managed };
+}
+
+function createFakeRegionGuild(roleList: FakeRole[], guildId = 'guild-1') {
+  const cache = new Collection<string, FakeRole>(roleList.map((role) => [role.id, role]));
+  const guild = {
+    id: guildId,
+    members: {
+      me: {
+        permissions: {
+          has(flag: bigint) {
+            return flag === PermissionFlagsBits.ManageRoles;
+          },
+        },
+        roles: {
+          highest: { position: 50 },
+        },
+      },
+    },
+    roles: {
+      cache,
+      fetch: async (roleId: string) => cache.get(roleId) ?? null,
+      async create(options: { name: string }) {
+        const created = createFakeRole(`created-${options.name}`, options.name, 1);
+        cache.set(created.id, created);
+        return created;
+      },
+    },
+  };
+
+  return { guild: guild as unknown as Guild, cache };
+}
+
+function createFakeMember(roleIds: string[]) {
+  const cache = new Collection<string, { id: string }>(roleIds.map((roleId) => [roleId, { id: roleId }]));
+  return {
+    id: 'user-1',
+    roles: {
+      cache,
+      async add(role: { id: string } | string) {
+        const roleId = typeof role === 'string' ? role : role.id;
+        cache.set(roleId, { id: roleId });
+        return this;
+      },
+      async remove(roleOrIds: string | string[]) {
+        const ids = Array.isArray(roleOrIds) ? roleOrIds : [roleOrIds];
+        for (const roleId of ids) {
+          cache.delete(roleId);
+        }
+        return this;
+      },
+    },
+  } as unknown as GuildMember;
+}
+
+const kantoRole = createFakeRole('role-kanto', '関東', 1);
+const tohokuRole = createFakeRole('role-tohoku', '東北', 1);
+const everyoneRole = createFakeRole('guild-1', '@everyone', 0);
+const managedRole = createFakeRole('role-managed', 'boost', 1, true);
+const { guild: regionGuild } = createFakeRegionGuild([kantoRole, tohokuRole, everyoneRole, managedRole]);
+
+regionService.bindRole(regionGuild, 'kanto', kantoRole as unknown as Role);
+assert.equal(regionService.getBinding('guild-1', 'kanto')?.roleId, 'role-kanto');
+assert.throws(() => regionService.bindRole(regionGuild, 'tohoku', kantoRole as unknown as Role), /REGION_ROLE_IN_USE/);
+assert.throws(() => regionService.bindRole(regionGuild, 'kanto', everyoneRole as unknown as Role), /REGION_ROLE_INVALID/);
+assert.throws(() => regionService.bindRole(regionGuild, 'tohoku', managedRole as unknown as Role), /REGION_ROLE_INVALID/);
+
+regionService.bindRole(regionGuild, 'tohoku', tohokuRole as unknown as Role);
+
+const member = createFakeMember(['role-tohoku']);
+const assigned = await regionService.assignRegion(regionGuild, member, 'kanto');
+assert.equal(assigned.regionKey, 'kanto');
+assert.equal(assigned.unchanged, false);
+assert.equal(assigned.previousRegionKey, null);
+assert.equal(member.roles.cache.has('role-kanto'), true);
+assert.equal(member.roles.cache.has('role-tohoku'), false);
+assert.equal(regionService.getMemberRegion('guild-1', 'user-1')?.regionKey, 'kanto');
+
+const reassigned = await regionService.assignRegion(regionGuild, member, 'kanto');
+assert.equal(reassigned.unchanged, true);
+
+const switched = await regionService.assignRegion(regionGuild, member, 'tohoku');
+assert.equal(switched.previousRegionKey, 'kanto');
+assert.equal(member.roles.cache.has('role-kanto'), false);
+assert.equal(member.roles.cache.has('role-tohoku'), true);
+
+await regionService.clearRegion(regionGuild, member);
+assert.equal(member.roles.cache.has('role-tohoku'), false);
+assert.equal(regionService.getMemberRegion('guild-1', 'user-1'), null);
+await assert.rejects(() => regionService.clearRegion(regionGuild, member), /REGION_NOT_SET/);
+
+const { guild: createGuild, cache: createdRoleCache } = createFakeRegionGuild([], 'guild-2');
+const createdResults = await regionService.createMissingRoles(createGuild, 'ja');
+assert.equal(createdResults.filter((row) => row.status === 'created').length, 10);
+assert.equal(createdRoleCache.size, 10);
+assert.equal(regionService.listConfiguredRegions('guild-2').length, 10);
+
+const alreadyCreated = await regionService.createMissingRoles(createGuild, 'ja');
+assert.equal(alreadyCreated.every((row) => row.status === 'already_bound'), true);
 
 database.close();
 

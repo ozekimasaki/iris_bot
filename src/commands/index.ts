@@ -3,6 +3,7 @@ import { eventCommand } from './event.js';
 import { forumCommand } from './forum.js';
 import { helpCommand } from './help.js';
 import { memberCommand } from './member.js';
+import { regionCommand } from './region.js';
 import { remindCommand } from './remind.js';
 import { roleCommand } from './role.js';
 import { setupCommand } from './setup.js';
@@ -16,5 +17,6 @@ export function buildCommands(): CommandDefinition[] {
     roleCommand,
     eventCommand,
     memberCommand,
+    regionCommand,
   ];
 }

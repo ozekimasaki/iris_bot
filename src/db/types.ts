@@ -128,3 +128,19 @@ export type RoleCleanupMemberRow = {
   lastError: string | null;
   updatedAt: number;
 };
+
+export type RegionRoleBindingRow = {
+  guildId: string;
+  regionKey: string;
+  roleId: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type MemberRegionRow = {
+  guildId: string;
+  userId: string;
+  regionKey: string;
+  roleId: string;
+  confirmedAt: number;
+};
