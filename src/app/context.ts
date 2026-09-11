@@ -8,7 +8,9 @@ import { GrantableRolesRepository } from '../db/repositories/grantable-roles-rep
 import { GuildRoleBindingsRepository } from '../db/repositories/guild-role-bindings-repository.js';
 import { HoneypotBansRepository } from '../db/repositories/honeypot-bans-repository.js';
 import { GuildSettingsRepository } from '../db/repositories/guild-settings-repository.js';
+import { MemberRegionsRepository } from '../db/repositories/member-regions-repository.js';
 import { RemindersRepository } from '../db/repositories/reminders-repository.js';
+import { RegionRoleBindingsRepository } from '../db/repositories/region-role-bindings-repository.js';
 import { RoleCleanupJobsRepository } from '../db/repositories/role-cleanup-jobs-repository.js';
 import { RoleCleanupMembersRepository } from '../db/repositories/role-cleanup-members-repository.js';
 import { UserTimezonesRepository } from '../db/repositories/user-timezones-repository.js';
@@ -18,6 +20,7 @@ import { GuildConfigService } from '../domain/guild-config-service.js';
 import { GuildHealthService } from '../domain/guild-health-service.js';
 import { PermissionService } from '../domain/permission-service.js';
 import { ReminderService } from '../domain/reminder-service.js';
+import { RegionService } from '../domain/region-service.js';
 import { RoleCleanupService } from '../domain/role-cleanup-service.js';
 import { HoneypotService } from '../domain/honeypot-service.js';
 import { RoleService } from '../domain/role-service.js';
@@ -29,6 +32,7 @@ export type AppServices = {
   reminders: ReminderService;
   roleCleanup: RoleCleanupService;
   roles: RoleService;
+  regions: RegionService;
   forums: ForumWatchService;
   events: EventService;
   honeypot: HoneypotService;
@@ -54,6 +58,8 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
   const roleCleanupJobs = new RoleCleanupJobsRepository(database);
   const roleCleanupMembers = new RoleCleanupMembersRepository(database);
   const honeypotBans = new HoneypotBansRepository(database);
+  const regionRoleBindings = new RegionRoleBindingsRepository(database);
+  const memberRegions = new MemberRegionsRepository(database);
 
   const guildConfig = new GuildConfigService(guildSettings, roleBindings);
   const roles = new RoleService(grantableRoles);
@@ -63,7 +69,8 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
   const events = new EventService(eventChannels, guildConfig, roles);
   const roleCleanup = new RoleCleanupService(database, roleCleanupJobs, roleCleanupMembers, guildConfig, logger);
   const honeypot = new HoneypotService(guildConfig, permissions, honeypotBans, logger);
-  const health = new GuildHealthService(guildConfig, roles, forums, events, roleCleanup);
+  const regions = new RegionService(regionRoleBindings, memberRegions, logger);
+  const health = new GuildHealthService(guildConfig, roles, forums, events, roleCleanup, regions);
 
   return {
     env,
@@ -77,6 +84,7 @@ export function createRuntimeContext(env: AppEnv, logger: Logger, client: Client
       reminders,
       roleCleanup,
       roles,
+      regions,
       forums,
       events,
       honeypot,

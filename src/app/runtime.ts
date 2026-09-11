@@ -47,6 +47,15 @@ async function handleInteraction(runtime: RuntimeWithCommands, interaction: Inte
     return;
   }
 
+  if (interaction.isStringSelectMenu()) {
+    for (const command of commands) {
+      if (command.handleSelectMenu && await command.handleSelectMenu(ctx, interaction)) {
+        return;
+      }
+    }
+    return;
+  }
+
   if (interaction.isButton()) {
     for (const command of commands) {
       if (command.handleButton && await command.handleButton(ctx, interaction)) {
