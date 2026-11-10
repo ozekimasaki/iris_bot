@@ -7,6 +7,8 @@ import {
 } from 'discord.js';
 import { withDescriptionLocales } from '../lib/command-localizations.js';
 import { getLanguageName, getScopeName, t } from '../lib/i18n.js';
+import { buildRegionCommandChoices, getRegionName, isRegionKey, regionKeys, type RegionKey } from '../lib/regions.js';
+import { buildRegionButtonRows, buildRegionGuideText, mapRegionError } from '../lib/region-ui.js';
 import type { RoleScope, SupportedLocale } from '../db/types.js';
 import { buildErrorEmbed, buildInfoEmbed } from '../lib/discord.js';
 import { isValidTimeZone } from '../lib/time.js';
@@ -23,6 +25,21 @@ const languageChoices: { name: string; value: SupportedLocale }[] = [
   { name: '日本語', value: 'ja' },
   { name: '简体中文', value: 'zh-CN' },
 ];
+
+function formatRegionBindings(
+  ctx: { services: { regions: { listConfiguredRegions: (guildId: string) => Array<{ key: RegionKey; roleId: string }> } } },
+  guildId: string,
+  locale: SupportedLocale,
+) {
+  const configured = ctx.services.regions.listConfiguredRegions(guildId);
+  if (configured.length === 0) {
+    return t(locale, 'common.none');
+  }
+
+  return configured
+    .map((row) => `${getRegionName(locale, row.key)}: <@&${row.roleId}>`)
+    .join('\n');
+}
 
 export const setupCommand: CommandDefinition = {
   data: withDescriptionLocales(
@@ -177,6 +194,103 @@ export const setupCommand: CommandDefinition = {
           '配置蜜罐陷阱频道。',
         ),
       )
+      .addSubcommandGroup((group) =>
+        withDescriptionLocales(
+          group
+            .setName('region')
+            .setDescription('Bind Discord roles to Japanese regions.')
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('set')
+                  .setDescription('Bind a Discord role to a Japanese region.')
+                  .addStringOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('region')
+                        .setDescription('Japanese region (not prefecture)')
+                        .setRequired(true)
+                        .addChoices(...buildRegionCommandChoices()),
+                      '地方（都道府県ではなく地方）',
+                      '日本地区（不是都道府县）',
+                    ),
+                  )
+                  .addRoleOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('role')
+                        .setDescription('Role to assign for this region')
+                        .setRequired(true),
+                      'この地方に紐づけるロール',
+                      '要绑定到该地区的身份组',
+                    ),
+                  ),
+                '地方に Discord ロールを紐づけます。',
+                '将 Discord 身份组绑定到日本地区。',
+              ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('clear')
+                  .setDescription('Remove the role binding for a region.')
+                  .addStringOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('region')
+                        .setDescription('Japanese region to unbind')
+                        .setRequired(true)
+                        .addChoices(...buildRegionCommandChoices()),
+                      '紐づけを解除する地方',
+                      '要解除绑定的地区',
+                    ),
+                  ),
+                '地方のロール紐づけを解除します。',
+                '移除地区身份组绑定。',
+              ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('list')
+                  .setDescription('List region role bindings.'),
+                '地方とロールの紐づけを表示します。',
+                '列出地区身份组绑定。',
+              ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('create_roles')
+                  .setDescription('Create missing region roles and bind them.'),
+                '未設定の地域ロールを作成して紐づけます。',
+                '创建并绑定尚未配置的地区身份组。',
+              ),
+            )
+            .addSubcommand((sub) =>
+              withDescriptionLocales(
+                sub
+                  .setName('panel')
+                  .setDescription('Post a public region role button panel.')
+                  .addChannelOption((option) =>
+                    withDescriptionLocales(
+                      option
+                        .setName('channel')
+                        .setDescription('Text channel for the panel')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(false),
+                      'パネルを投稿するテキストチャンネル',
+                      '发布面板的文本频道',
+                    ),
+                  ),
+                '地方ロール用のボタンパネルを投稿します。',
+                '发布地区身份组按钮面板。',
+              ),
+            ),
+          '日本の地方ロールを設定します。',
+          '配置日本地区身份组。',
+        ),
+      )
       .addSubcommand((sub) =>
         withDescriptionLocales(
           sub
@@ -270,8 +384,8 @@ export const setupCommand: CommandDefinition = {
   ),
   meta: {
     name: 'setup',
-    summary: 'Configure guild roles, categories, timezone, and language.',
-    usage: '/setup role add|remove|list, /setup honeypot set|clear|list, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
+    summary: 'Configure guild roles, region roles, categories, timezone, and language.',
+    usage: '/setup role add|remove|list, /setup honeypot set|clear|list, /setup region set|clear|list|create_roles|panel, /setup event_categories, /setup timezone, /setup language, /setup show|validate',
     visibility: 'admin',
   },
   async execute(ctx, interaction) {
@@ -400,6 +514,179 @@ export const setupCommand: CommandDefinition = {
       return;
     }
 
+    if (group === 'region') {
+      if (subcommand === 'set') {
+        const regionValue = interaction.options.getString('region', true);
+        if (!isRegionKey(regionValue)) {
+          await interaction.reply({
+            embeds: [buildErrorEmbed(t(locale, 'region.unknownRegionTitle'), t(locale, 'region.unknownRegionDescription'))],
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const selectedRole = interaction.options.getRole('role', true);
+        const role = interaction.guild!.roles.cache.get(selectedRole.id);
+        if (!role) {
+          await interaction.reply({
+            embeds: [buildErrorEmbed(t(locale, 'region.invalidRoleTitle'), t(locale, 'region.invalidRoleDescription'))],
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        try {
+          ctx.services.regions.bindRole(interaction.guild!, regionValue, role);
+          await interaction.reply({
+            embeds: [buildInfoEmbed(
+              t(locale, 'setup.regionBoundTitle'),
+              t(locale, 'setup.regionBoundDescription', {
+                role: String(role),
+                region: getRegionName(locale, regionValue),
+              }),
+            )],
+            flags: MessageFlags.Ephemeral,
+          });
+        } catch (error) {
+          const existing = ctx.services.regions.getBindingByRole(interaction.guildId!, role.id);
+          const message = mapRegionError(locale, error, {
+            role: String(role),
+            region: existing && isRegionKey(existing.regionKey)
+              ? getRegionName(locale, existing.regionKey)
+              : getRegionName(locale, regionValue),
+          });
+          await interaction.reply({
+            embeds: [buildErrorEmbed(message.title, message.description)],
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        return;
+      }
+
+      if (subcommand === 'clear') {
+        const regionValue = interaction.options.getString('region', true);
+        if (!isRegionKey(regionValue)) {
+          await interaction.reply({
+            embeds: [buildErrorEmbed(t(locale, 'region.unknownRegionTitle'), t(locale, 'region.unknownRegionDescription'))],
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        ctx.services.regions.unbindRole(interaction.guildId!, regionValue);
+        await interaction.reply({
+          embeds: [buildInfoEmbed(
+            t(locale, 'setup.regionClearedTitle'),
+            t(locale, 'setup.regionClearedDescription', { region: getRegionName(locale, regionValue) }),
+          )],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      if (subcommand === 'list') {
+        const bindings = new Map(
+          ctx.services.regions.listBindings(interaction.guildId!).map((row) => [row.regionKey, row.roleId]),
+        );
+        const embed = new EmbedBuilder()
+          .setTitle(t(locale, 'setup.regionListTitle'))
+          .setColor(0x5865f2)
+          .setTimestamp();
+
+        embed.setDescription(
+          regionKeys.map((key) => {
+            const roleId = bindings.get(key);
+            return t(locale, 'setup.regionListLine', {
+              region: getRegionName(locale, key),
+              role: roleId ? `<@&${roleId}>` : t(locale, 'setup.regionListUnbound'),
+            });
+          }).join('\n'),
+        );
+
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      if (subcommand === 'create_roles') {
+        try {
+          const results = await ctx.services.regions.createMissingRoles(interaction.guild!, locale);
+          const created = results.filter((row) => row.status === 'created').length;
+          const bound = results.filter((row) => row.status === 'bound_existing').length;
+          const skipped = results.filter((row) => row.status === 'already_bound').length;
+          const failed = results.filter((row) => row.status === 'skipped');
+          const embed = new EmbedBuilder()
+            .setTitle(t(locale, 'setup.regionCreateTitle'))
+            .setColor(failed.length > 0 ? 0xfee75c : 0x57f287)
+            .setDescription(t(locale, 'setup.regionCreateDescription', {
+              created,
+              bound,
+              skipped,
+              failed: failed.length,
+            }))
+            .setTimestamp();
+
+          if (failed.length > 0) {
+            embed.addFields({
+              name: t(locale, 'setup.validationWarningsField'),
+              value: failed.map((row) => {
+                const reason = mapRegionError(locale, new Error(row.reason ?? 'REGION_CREATE_FAILED'), {
+                  region: getRegionName(locale, row.regionKey),
+                  role: row.roleId ? `<@&${row.roleId}>` : t(locale, 'common.notSet'),
+                });
+                return `${getRegionName(locale, row.regionKey)}: ${reason.description}`;
+              }).join('\n').slice(0, 1024),
+            });
+          }
+
+          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        } catch (error) {
+          const message = mapRegionError(locale, error);
+          await interaction.reply({
+            embeds: [buildErrorEmbed(message.title, message.description)],
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+        return;
+      }
+
+      const selectedChannel = interaction.options.getChannel('channel');
+      const targetChannel = selectedChannel
+        ? await interaction.guild!.channels.fetch(selectedChannel.id)
+        : interaction.channel;
+      if (!targetChannel || targetChannel.type !== ChannelType.GuildText || !('send' in targetChannel)) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed(t(locale, 'region.invalidChannelTitle'), t(locale, 'region.invalidChannelDescription'))],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const configured = ctx.services.regions.listConfiguredRegions(interaction.guildId!);
+      if (configured.length === 0) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed(t(locale, 'region.setupRequiredTitle'), t(locale, 'region.setupRequiredDescription'))],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      await targetChannel.send({
+        embeds: [buildInfoEmbed(
+          t(locale, 'region.panelTitle'),
+          buildRegionGuideText(locale, 'region.panelDescription', configured),
+        )],
+        components: buildRegionButtonRows(locale, configured),
+      });
+      await interaction.reply({
+        embeds: [buildInfoEmbed(
+          t(locale, 'setup.regionPanelPostedTitle'),
+          t(locale, 'setup.regionPanelPostedDescription', { channel: String(targetChannel) }),
+        )],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     if (subcommand === 'event_categories') {
       const eventCategory = interaction.options.getChannel('event_category', true);
       const archiveCategory = interaction.options.getChannel('archive_category', true);
@@ -499,6 +786,10 @@ export const setupCommand: CommandDefinition = {
         { name: t(locale, 'setup.adminRolesField'), value: config.roles.admin.length ? config.roles.admin.map((roleId) => `<@&${roleId}>`).join('\n') : t(locale, 'common.none') },
         { name: t(locale, 'setup.managerRolesField'), value: config.roles.manager.length ? config.roles.manager.map((roleId) => `<@&${roleId}>`).join('\n') : t(locale, 'common.none') },
         { name: t(locale, 'setup.forumNoticeRolesField'), value: config.roles.forum_notice.length ? config.roles.forum_notice.map((roleId) => `<@&${roleId}>`).join('\n') : t(locale, 'common.none') },
+        {
+          name: t(locale, 'setup.regionRolesField'),
+          value: formatRegionBindings(ctx, interaction.guildId!, locale),
+        },
       );
 
     if (missing.length > 0) {

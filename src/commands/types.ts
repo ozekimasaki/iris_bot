@@ -6,6 +6,7 @@ import type {
   SlashCommandOptionsOnlyBuilder,
   SlashCommandBuilder,
   SlashCommandSubcommandsOnlyBuilder,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import type { DatabaseHandle } from '../db/client.js';
 import type { RoleScope } from '../db/types.js';
@@ -36,4 +37,5 @@ export type CommandDefinition = {
   autocomplete?: (ctx: CommandContext, interaction: AutocompleteInteraction) => Promise<boolean>;
   handleModal?: (ctx: CommandContext, interaction: ModalSubmitInteraction) => Promise<boolean>;
   handleButton?: (ctx: CommandContext, interaction: ButtonInteraction) => Promise<boolean>;
+  handleSelectMenu?: (ctx: CommandContext, interaction: StringSelectMenuInteraction) => Promise<boolean>;
 };

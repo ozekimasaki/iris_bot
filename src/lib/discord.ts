@@ -27,13 +27,14 @@ export function buildConfirmRow(
   labels?: {
     confirm: string;
     cancel: string;
+    confirmStyle?: ButtonStyle;
   },
 ) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(confirmId)
       .setLabel(labels?.confirm ?? 'Confirm')
-      .setStyle(ButtonStyle.Danger),
+      .setStyle(labels?.confirmStyle ?? ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(cancelId)
       .setLabel(labels?.cancel ?? 'Cancel')

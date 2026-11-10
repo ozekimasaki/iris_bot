@@ -6,9 +6,11 @@ import {
 import { EventService } from './event-service.js';
 import { ForumWatchService } from './forum-watch-service.js';
 import { GuildConfigService } from './guild-config-service.js';
+import { RegionService } from './region-service.js';
 import { RoleCleanupService } from './role-cleanup-service.js';
 import { RoleService } from './role-service.js';
 import { isValidTimeZone } from '../lib/time.js';
+import { getRegionName, isRegionKey } from '../lib/regions.js';
 
 export type GuildHealthReport = {
   blocking: string[];
@@ -22,6 +24,7 @@ export class GuildHealthService {
     private readonly forumWatchService: ForumWatchService,
     private readonly eventService: EventService,
     private readonly roleCleanupService: RoleCleanupService,
+    private readonly regionService: RegionService,
   ) {}
 
   async validateGuild(guild: Guild): Promise<GuildHealthReport> {
@@ -37,6 +40,7 @@ export class GuildHealthService {
     const grantableRoles = await this.roleService.listGrantableRoles(guild.id);
     const forumWatches = await this.forumWatchService.listWatches(guild.id);
     const pendingCleanupJobs = this.roleCleanupService.listPendingJobs(guild.id);
+    const regionBindings = this.regionService.listBindings(guild.id);
 
     if (config.roles.admin.length === 0) {
       report.blocking.push('No admin roles are configured.');
@@ -83,7 +87,7 @@ export class GuildHealthService {
       report.warnings.push('Forum watches exist but no forum notice roles are configured.');
     }
 
-    if ((grantableRoles.length > 0 || pendingCleanupJobs.length > 0) && !botPermissions?.has(PermissionFlagsBits.ManageRoles)) {
+    if ((grantableRoles.length > 0 || pendingCleanupJobs.length > 0 || regionBindings.length > 0) && !botPermissions?.has(PermissionFlagsBits.ManageRoles)) {
       report.blocking.push('Bot is missing Manage Roles while role operations are configured.');
     }
     if ((activeEvents.length > 0 || config.eventCategoryId || config.archiveCategoryId) && !botPermissions?.has(PermissionFlagsBits.ManageChannels)) {
@@ -149,6 +153,21 @@ export class GuildHealthService {
       }
       if (!botPermissions?.has(PermissionFlagsBits.BanMembers)) {
         report.warnings.push('Bot is missing Ban Members while a honeypot channel is configured.');
+      }
+    }
+
+    for (const row of regionBindings) {
+      const regionLabel = isRegionKey(row.regionKey) ? getRegionName('en', row.regionKey) : row.regionKey;
+      const role = guild.roles.cache.get(row.roleId) ?? await guild.roles.fetch(row.roleId).catch(() => null);
+      if (!role) {
+        report.warnings.push(`Region role binding for ${regionLabel} points to a missing role (${row.roleId}).`);
+        continue;
+      }
+      if (role.managed) {
+        report.warnings.push(`Region role ${role.name} (${regionLabel}) is a managed integration role.`);
+      }
+      if (botMember && role.position >= botMember.roles.highest.position) {
+        report.warnings.push(`Region role ${role.name} (${regionLabel}) is above the bot role.`);
       }
     }
 

@@ -8,6 +8,7 @@ Iris is a reusable Discord operations bot designed for multi-guild deployments o
 - Timezone-aware reminders (one-shot and repeating)
 - Forum thread watch notifications with startup reconciliation and manual `/forum resync`
 - Allow-list based grantable role management
+- Self-serve Japanese region roles grouped by region, not prefecture, assigned by pressing a button
 - Scheduled role cleanup with confirmation and restore
 - Event channel creation and archive workflow
 - Honeypot channel that silently bans posters
@@ -93,6 +94,7 @@ systemd/                # Ubuntu systemd unit and operations docs
 - `/help [topic]`
 - `/setup role add|remove|list`
 - `/setup honeypot set|clear|list`
+- `/setup region set|clear|list|create_roles|panel`
 - `/setup event_categories`
 - `/setup timezone`
 - `/setup language`
@@ -104,6 +106,7 @@ systemd/                # Ubuntu systemd unit and operations docs
 - `/role cleanup start|list|cancel|restore|retry`
 - `/event create|archive|list`
 - `/member export`
+- `/region set [region]|show|clear`
 
 ## Discord application requirements
 
@@ -132,7 +135,8 @@ Ubuntu deployment assumes `proto` and the bundled [`.prototools`](./.prototools)
 2. Sync commands globally or per guild.
 3. In Discord, run `/setup role add` to configure admin and manager roles.
 4. Run `/setup event_categories`, `/setup timezone`, and `/setup language`.
-5. Start using `/remind`, `/forum`, `/role`, `/event`, and `/member`.
+5. Optionally bind Japanese region roles with `/setup region set` or `/setup region create_roles`, then post `/setup region panel` so members can press a button to get a role.
+6. Start using `/remind`, `/forum`, `/role`, `/event`, `/member`, and `/region`.
 
 ## License
 

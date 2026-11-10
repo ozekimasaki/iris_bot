@@ -32,7 +32,7 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 - `src/commands/` — one file per top-level slash command, registered via `index.ts`
 - `src/domain/` — business logic services
 - `src/db/` — SQLite client, migration runner, repositories (`db/repositories/`)
-- `src/lib/` — helpers: `i18n.ts`, `command-localizations.ts`, `time.ts`, `csv.ts`, `discord.ts`
+- `src/lib/` — helpers: `i18n.ts`, `command-localizations.ts`, `time.ts`, `csv.ts`, `discord.ts`, `regions.ts`, `region-ui.ts`
 - `src/test/smoke.ts` — smoke test entry point
 - `migrations/` — numbered SQL migration files
 - `systemd/` — Ubuntu systemd unit and operations docs
@@ -51,6 +51,7 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 - `/help [topic]`
 - `/setup role add|remove|list`
 - `/setup honeypot set|clear|list`
+- `/setup region set|clear|list|create_roles|panel`
 - `/setup event_categories`
 - `/setup timezone`
 - `/setup language`
@@ -62,6 +63,7 @@ This file summarizes the current implementation state of `iris-bot` so future ch
 - `/role cleanup start|list|cancel|restore|retry`
 - `/event create|archive|list`
 - `/member export`
+- `/region set [region]|show|clear`
 
 Command registration is built from `src/commands/index.ts`.
 
@@ -76,6 +78,7 @@ All configuration is stored per guild in SQLite. There are no repo-tracked JSON 
 - Default timezone: one per guild
 - Language: one per guild
 - Honeypot channel: one text channel per guild (optional)
+- Region roles: one Discord role per Japanese region (optional)
 
 Role scopes are:
 
@@ -133,6 +136,19 @@ Permission checks combine Discord permissions and configured role scopes.
 - `/role cleanup restore` re-grants only members removed by that cleanup job
 - `/role cleanup retry` requeues pending or failed removals for the next scheduler pass
 
+### Region Roles
+
+- Regions are Japanese 地方 groups, not prefectures: Hokkaido, Tohoku, Kanto, Chubu, Kinki, Chugoku, Shikoku, Kyushu, Okinawa, Overseas
+- `/setup region set` binds an existing Discord role to one region
+- `/setup region create_roles` creates missing region roles (guild language names) and binds them
+- `/setup region panel` posts a public button panel so members can get a region role by pressing a button
+- Pressing a region button assigns that role immediately and removes other region roles
+- `/region set` shows the same buttons, or assigns immediately when a region is passed
+- A member keeps only one region role at a time
+- `/region show` and `/region clear` are self-serve; the panel also has a button to remove the role
+- Region roles are not added to the `/role grant` allow-list
+- Requires `Manage Roles`, and the bot role must be above the bound region roles
+
 ## Localization
 
 Supported guild languages:
@@ -146,6 +162,7 @@ Current localization coverage:
 - Runtime replies and embeds for major commands
 - Confirmation button labels
 - Forum notification embed text
+- Region names and prefecture groupings
 - Slash command descriptions via `setDescriptionLocalizations`
 
 Current localization limits:
@@ -180,6 +197,8 @@ Main tables:
 - `role_cleanup_jobs`
 - `role_cleanup_members`
 - `honeypot_bans`
+- `region_role_bindings`
+- `member_regions`
 
 ## Operational Commands
 
@@ -235,6 +254,7 @@ Command sync behavior:
 - Prefer `/setup event_categories` in all new UX and docs
 - Role granting is allow-list based
   - Iris does not support unrestricted arbitrary role assignment
+- Region roles are grouped by Japanese 地方, not prefectures, and members get a role by pressing a button
 - Forum notifications mention only configured `forum_notice` roles via `allowedMentions`
 - Help output is permission-aware
 
@@ -252,6 +272,7 @@ Command sync behavior:
 - `src/app/runtime.ts`
 - `src/app/context.ts`
 - `src/commands/setup.ts`
+- `src/commands/region.ts`
 - `src/commands/event.ts`
 - `src/commands/forum.ts`
 - `src/commands/remind.ts`
@@ -259,9 +280,11 @@ Command sync behavior:
 - `src/domain/guild-health-service.ts`
 - `src/domain/forum-watch-service.ts`
 - `src/domain/event-service.ts`
+- `src/domain/region-service.ts`
 - `src/domain/role-cleanup-service.ts`
 - `src/domain/honeypot-service.ts`
 - `src/lib/i18n.ts`
+- `src/lib/regions.ts`
 
 ## Verification Status
 
